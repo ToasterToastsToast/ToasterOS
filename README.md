@@ -1,5 +1,5 @@
-= ToasterOS
+# ToasterOS
 
 contributor:
-- toastertoastertoast,
+- ToasterToasterToast
 - syqwq
