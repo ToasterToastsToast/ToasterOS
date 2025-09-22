@@ -48,6 +48,16 @@ static void printptr(uint64 x)
         uart_putc_sync(digits[x >> (sizeof(uint64) * 8 - 4)]);
 }
 
+static void printchar(int c){
+    uart_putc_sync(c);
+}
+
+static void printstring(char* ptr){
+    while (*ptr!='\0'){
+        uart_putc_sync(*ptr);
+        ptr++;
+    }
+}
 /*
     标准化输出, 需要支持:
     1. %d (32位有符号数,以10进制输出)
@@ -79,5 +89,7 @@ void panic(const char *s)
 /* 如果不满足条件, 则调用panic */
 void assert(bool condition, const char *warning)
 {
-
+    if (!condition){
+        panic(warning);
+    }
 }
