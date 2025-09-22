@@ -22,7 +22,7 @@ void start()
     w_mstatus(status);
 
     // 设置M-mode的返回地址
-
-    // 触发状态迁移，回到上一个状态（M-mode->S-mode）
-
+    w_mepc((uint64)main);
+    // 触发状态迁移，回到上一个状态
+    asm volatile("mret");//从xv6抄的，M-mode RETurn
 }
