@@ -1,5 +1,5 @@
 /* 标准输出和报错机制 */
-
+#include <stdarg.h>
 #include "mod.h"
 
 static char digits[] = "0123456789abcdef";
@@ -69,7 +69,28 @@ static void printstring(char* ptr){
 */
 void printf(const char *fmt, ...)
 {
+    int i,c;
+    assert(fmt!=0, "null fmt");
+    for(i=0;(c = fmt[i] & 0xff)!=0;i++){
+        if(c!='%'){
+            uart_putc_sync(c);
+            continue;
+        }//非格式化原样输出
+        c = fmt[++i] & 0xff;//跳过%
+        if(c==0){
+            break;
+        }
+        switch(c){
+            case 'd':
+                printint(va_arg(ap, int), 10, 1);
+            case 'x':
+                printptr(va_arg(ap, uint64));
+            case 'p':
+                printint(va_arg(ap,int),16,0);
 
+        }
+
+    }
 }
 
 
