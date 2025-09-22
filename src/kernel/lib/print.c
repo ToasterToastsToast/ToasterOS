@@ -87,7 +87,12 @@ void printf(const char *fmt, ...)
                 printptr(va_arg(ap, uint64));
             case 'p':
                 printint(va_arg(ap,int),16,0);
-
+            case 'c':
+                printchar(va_arg(ap,int));
+            case '%':
+                printchar('%');
+            case 's':
+                printstring(va_arg(ap,char *));
         }
 
     }
