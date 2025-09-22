@@ -3,7 +3,6 @@
 
 int main()
 {
-    int num=413;
-    printf("%d",num);
-    printf("\n%x\n%p",num,num);
+    printf("hello world");
+    return 0;
 }

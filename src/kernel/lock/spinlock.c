@@ -41,7 +41,7 @@ void spinlock_init(spinlock_t *lk, char *name)
 // 是否持有自旋锁
 bool spinlock_holding(spinlock_t *lk)
 {
-
+    return 0;
 }
 
 // 获取自选锁

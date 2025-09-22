@@ -69,6 +69,8 @@ static void printstring(char* ptr){
 */
 void printf(const char *fmt, ...)
 {
+    va_list ap;
+    va_start(ap, fmt);
     int i,c;
     assert(fmt!=0, "null fmt");
     for(i=0;(c = fmt[i] & 0xff)!=0;i++){
@@ -83,14 +85,19 @@ void printf(const char *fmt, ...)
         switch(c){
             case 'd':
                 printint(va_arg(ap, int), 10, 1);
+                break;
             case 'x':
                 printptr(va_arg(ap, uint64));
+                break;
             case 'p':
                 printint(va_arg(ap,int),16,0);
+                break;
             case 'c':
                 printchar(va_arg(ap,int));
+                break;
             case '%':
                 printchar('%');
+                break;
             case 's':
                 printstring(va_arg(ap,char *));
         }
