@@ -6,12 +6,15 @@ static char digits[] = "0123456789abcdef";
 
 /* printf的自旋锁 */
 static spinlock_t print_lk;
+static int print_locking = 1;
+
 
 /* 初始化uart + 初始化printf锁 */
 void print_init(void)
 {
     uart_init();
     spinlock_init(&print_lk, "printf");
+    print_locking = 1;
 }
 
 /* %d %p */
@@ -71,18 +74,22 @@ void printf(const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
-    int i,c;
-    assert(fmt!=0, "null fmt");
-    for(i=0;(c = fmt[i] & 0xff)!=0;i++){
-        if(c!='%'){
+    int i, c;
+
+    if (print_locking) {
+        spinlock_acquire(&print_lk);
+    }
+    assert(fmt != 0, "null fmt");
+    for (i = 0; (c = fmt[i] & 0xff) != 0; i++) {
+        if (c != '%') {
             uart_putc_sync(c);
             continue;
-        }//非格式化原样输出
-        c = fmt[++i] & 0xff;//跳过%
-        if(c==0){
+        }
+        c = fmt[++i] & 0xff;
+        if (c == 0) {
             break;
         }
-        switch(c){
+        switch (c) {
             case 'd':
                 printint(va_arg(ap, int), 10, 1);
                 break;
@@ -90,18 +97,25 @@ void printf(const char *fmt, ...)
                 printptr(va_arg(ap, uint64));
                 break;
             case 'p':
-                printint(va_arg(ap,int),16,0);
+                printint(va_arg(ap, int), 16, 0);
                 break;
             case 'c':
-                printchar(va_arg(ap,int));
+                printchar(va_arg(ap, int));
                 break;
             case '%':
                 printchar('%');
                 break;
             case 's':
-                printstring(va_arg(ap,char *));
+                printstring(va_arg(ap, char *));
+                break;
+            default:
+                printchar('%');
+                printchar(c);
+                break;
         }
-
+    }
+    if (print_locking) {
+        spinlock_release(&print_lk);
     }
 }
 
