@@ -55,10 +55,34 @@ static void printchar(int c){
     uart_putc_sync(c);
 }
 
+int putchar(int c){
+    if (print_locking)
+    {
+        spinlock_acquire(&print_lk);
+    }
+    uart_putc_sync(c);
+    if (print_locking)
+    {
+        spinlock_release(&print_lk);
+    }
+    return c;
+}
 static void printstring(char* ptr){
     while (*ptr!='\0'){
         uart_putc_sync(*ptr);
         ptr++;
+    }
+}
+void puts(char* ptr){
+    if (print_locking)
+    {
+        spinlock_acquire(&print_lk);
+    }
+    printstring(ptr);
+    printchar('\n');
+    if (print_locking)
+    {
+        spinlock_release(&print_lk);
     }
 }
 /*

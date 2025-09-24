@@ -16,5 +16,6 @@ int main() {
             ;
     }
     printf("cpu-%d is running!\n", id);
+
     return 0;
 }
