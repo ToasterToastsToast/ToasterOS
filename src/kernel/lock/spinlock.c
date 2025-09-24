@@ -38,17 +38,17 @@ void spinlock_init(spinlock_t *lk, char *name)
 {
   lk->name = name;
   lk->locked = 0;
-  lk->cpuid = 0;
+  lk->cpuid = -1;
 }
 
-// 是否持有自旋锁
+// 当前core是否持有自旋锁
 bool spinlock_holding(spinlock_t *lk)
 {
-    return (lk->locked && lk->cpuid==mycpuid());
     //锁是锁的而且锁的cpu是我
+    return (lk->locked && lk->cpuid==mycpuid());
 }
 
-// 获取自旋锁
+// 不断旋转直到获取自旋锁
 void spinlock_acquire(spinlock_t *lk)
 {
     push_off();
@@ -58,7 +58,6 @@ void spinlock_acquire(spinlock_t *lk)
     while(__sync_lock_test_and_set(&lk->locked, 1) != 0)
         ;
 
-    __sync_synchronize();
     lk->cpuid = mycpuid();
 
 }
@@ -69,7 +68,7 @@ void spinlock_release(spinlock_t *lk)
     if(!spinlock_holding(lk)){
         panic("release");
     }
-    lk->cpuid=0;
+    lk->cpuid=-1;
     __sync_synchronize();
     __sync_lock_release(&lk->locked);
     pop_off();

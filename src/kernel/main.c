@@ -1,9 +1,20 @@
 #include "arch/mod.h"
 #include "lib/mod.h"
 
-int main()
-{
+static volatile int started = 0;
+
+int main() {
     int id = mycpuid();
-    printf("cpu %d is booting!\n",id);
+    if (id == 0) {
+        printf("hello this is default lucky cpu-0! spin-lock disabled!\n");
+
+        print_init();
+
+        started = 1;
+    } else {
+        while (!started)
+            ;
+    }
+    printf("cpu-%d is running!\n", id);
     return 0;
 }

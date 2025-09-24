@@ -6,7 +6,7 @@ static char digits[] = "0123456789abcdef";
 
 /* printf的自旋锁 */
 static spinlock_t print_lk;
-static int print_locking = 1;
+static int print_locking;   /*存储在 .bss 段 初始化为0，因为luckycpu不用锁*/
 
 
 /* 初始化uart + 初始化printf锁 */
