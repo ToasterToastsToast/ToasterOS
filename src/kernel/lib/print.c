@@ -15,9 +15,11 @@ void print_init(void) {
     print_locking = 1;
 }
 
+static void printchar(int c) { uart_putc_sync(c); }
+
 static void printstr(char *str) {
     while (*str != '\0') {
-        putchar(*str);
+        printchar(*str);
         str++;
     }
 }
@@ -42,20 +44,18 @@ static void printint(int xx, int base, int sign) {
         buf[i++] = '-';
 
     while (--i >= 0)
-        putchar(buf[i]);
+        printchar(buf[i]);
 }
 
 /* %x */
 static void printptr(uint64 x) {
-    putchar('0');
-    putchar('x');
+    printchar('0');
+    printchar('x');
     for (int i = 0; i < (sizeof(uint64) * 2); i++, x <<= 4)
         putchar(digits[x >> (sizeof(uint64) * 8 - 4)]);
 }
 
-static void printchar(int c) { uart_putc_sync(c); }
-
-void putchar(int c) {
+int putchar(int c) {
     if (print_locking) {
         spinlock_acquire(&print_lk);
     }
@@ -63,18 +63,14 @@ void putchar(int c) {
     if (print_locking) {
         spinlock_release(&print_lk);
     }
+    return c;
 }
-static void printstring(char *ptr) {
-    while (*ptr != '\0') {
-        uart_putc_sync(*ptr);
-        ptr++;
-    }
-}
+
 void puts(char *ptr) {
     if (print_locking) {
         spinlock_acquire(&print_lk);
     }
-    printstring(ptr);
+    printstr(ptr);
     printchar('\n');
     if (print_locking) {
         spinlock_release(&print_lk);
@@ -124,7 +120,7 @@ void printf(const char *fmt, ...) {
             printchar('%');
             break;
         case 's':
-            printstring(va_arg(ap, char *));
+            printstr(va_arg(ap, char *));
             break;
         default:
             printchar('%');
