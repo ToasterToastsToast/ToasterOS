@@ -6,7 +6,8 @@ void print_init(void);
 void printf(const char *fmt, ...);
 void panic(const char *s);
 void assert(bool condition, const char *warning);
-
+int putchar(int c);
+void puts(char* ptr);
 /* uart.c: UART驱动函数 */
 
 void uart_init(void);

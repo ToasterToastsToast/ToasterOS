@@ -9,12 +9,13 @@
     5. 如果stack中元素清空, 将中断状态设为初始的X
 */
 
+
 // 带层数叠加的关中断
 void push_off(void)
 {
     int old = intr_get();
     intr_off();
-    cpu_t *cpu = mycpu();
+    cpu_t *cpu = mycpu();//lib cpu.c
     if (cpu->noff == 0)
         cpu->origin = old;
     cpu->noff++;
@@ -32,26 +33,43 @@ void pop_off(void)
 }
 
 
-// 自选锁初始化
+// 自旋锁初始化
 void spinlock_init(spinlock_t *lk, char *name)
 {
-
+  lk->name = name;
+  lk->locked = 0;
+  lk->cpuid = -1;
 }
 
-// 是否持有自旋锁
+// 当前core是否持有自旋锁
 bool spinlock_holding(spinlock_t *lk)
 {
-    return 0;
+    //锁是锁的而且锁的cpu是我
+    return (lk->locked && lk->cpuid==mycpuid());
 }
 
-// 获取自选锁
+// 不断旋转直到获取自旋锁
 void spinlock_acquire(spinlock_t *lk)
 {
+    push_off();
+    if(spinlock_holding(lk)){
+        panic("acquire");
+    }
+    while(__sync_lock_test_and_set(&lk->locked, 1) != 0)
+        ;
+
+    lk->cpuid = mycpuid();
 
 }
 
 // 释放自旋锁
 void spinlock_release(spinlock_t *lk)
 {
-
+    if(!spinlock_holding(lk)){
+        panic("release");
+    }
+    lk->cpuid=-1;
+    __sync_synchronize();
+    __sync_lock_release(&lk->locked);
+    pop_off();
 }

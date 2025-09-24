@@ -6,14 +6,14 @@ static char digits[] = "0123456789abcdef";
 
 /* printf的自旋锁 */
 static spinlock_t print_lk;
+static int print_locking; /*存储在 .bss 段 初始化为0，因为cpu-0不用锁*/
 
 /* 初始化uart + 初始化printf锁 */
 void print_init(void) {
     uart_init();
     spinlock_init(&print_lk, "printf");
+    print_locking = 1;
 }
-
-static void putchar(int c) { uart_putc_sync(c); }
 
 static void printstr(char *str) {
     while (*str != '\0') {
@@ -21,8 +21,6 @@ static void printstr(char *str) {
         str++;
     }
 }
-
-static void puts(char *str) { printstr(str), putchar('\n'); }
 
 /* %d %p */
 static void printint(int xx, int base, int sign) {
@@ -55,6 +53,33 @@ static void printptr(uint64 x) {
         putchar(digits[x >> (sizeof(uint64) * 8 - 4)]);
 }
 
+static void printchar(int c) { uart_putc_sync(c); }
+
+void putchar(int c) {
+    if (print_locking) {
+        spinlock_acquire(&print_lk);
+    }
+    uart_putc_sync(c);
+    if (print_locking) {
+        spinlock_release(&print_lk);
+    }
+}
+static void printstring(char *ptr) {
+    while (*ptr != '\0') {
+        uart_putc_sync(*ptr);
+        ptr++;
+    }
+}
+void puts(char *ptr) {
+    if (print_locking) {
+        spinlock_acquire(&print_lk);
+    }
+    printstring(ptr);
+    printchar('\n');
+    if (print_locking) {
+        spinlock_release(&print_lk);
+    }
+}
 /*
     标准化输出, 需要支持:
     1. %d (32位有符号数,以10进制输出)
@@ -67,17 +92,18 @@ static void printptr(uint64 x) {
 void printf(const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
-
     int i, c;
 
+    if (print_locking) {
+        spinlock_acquire(&print_lk);
+    }
     assert(fmt != 0, "null fmt");
-
     for (i = 0; (c = fmt[i] & 0xff) != 0; i++) {
         if (c != '%') {
-            putchar(c);
+            uart_putc_sync(c);
             continue;
-        } // 非格式化原样输出
-        c = fmt[++i] & 0xff; // 跳过%
+        }
+        c = fmt[++i] & 0xff;
         if (c == 0) {
             break;
         }
@@ -92,19 +118,22 @@ void printf(const char *fmt, ...) {
             printint(va_arg(ap, int), 16, 0);
             break;
         case 'c':
-            putchar(va_arg(ap, int));
+            printchar(va_arg(ap, int));
             break;
         case '%':
-            putchar('%');
+            printchar('%');
             break;
         case 's':
-            printstr(va_arg(ap, char *));
+            printstring(va_arg(ap, char *));
             break;
         default:
-            putchar('%');
-            putchar(c);
+            printchar('%');
+            printchar(c);
             break;
         }
+    }
+    if (print_locking) {
+        spinlock_release(&print_lk);
     }
 }
 
