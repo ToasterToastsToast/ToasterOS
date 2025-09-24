@@ -3,10 +3,7 @@
 
 int main()
 {
-    printf("helloworld\n");
-    int a=413,b=98;
-    char s[10]="iloveyou";
-    printf("%d and %x\n",a,b);
-    printf("%s",s);
+    int id = mycpuid();
+    printf("cpu %d is booting!\n",id);
     return 0;
 }

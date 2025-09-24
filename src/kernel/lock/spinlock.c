@@ -67,7 +67,7 @@ void spinlock_acquire(spinlock_t *lk)
 void spinlock_release(spinlock_t *lk)
 {
     if(!spinlock_holding(lk)){
-        panic("acquire");
+        panic("release");
     }
     lk->cpuid=0;
     __sync_synchronize();
