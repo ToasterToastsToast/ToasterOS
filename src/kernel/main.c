@@ -6,8 +6,11 @@ static volatile int started = 0;
 int main() {
     int id = mycpuid();
     if (id == 0) {
-        printf("hello this is default lucky cpu-0! spin-lock disabled!\n");
 
+        printf("┏┳┓┏┓┏┓┏┓┏┳┓┏┓┳┓  ┏┓┏┓\n");
+        printf(" ┃ ┃┃┣┫┗┓ ┃ ┣ ┣┫━━┃┃┗┓\n");
+        printf(" ┻ ┗┛┛┗┗┛ ┻ ┗┛┛┗  ┗┛┗┛\n");
+        printf("hello this is default lucky cpu-0! spin-lock disabled!\n");
         print_init();
 
         started = 1;
