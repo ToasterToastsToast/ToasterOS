@@ -133,5 +133,36 @@ cpu 1 report: sum = 2000000
 在多核并发编程中，对共享资源的访问必须受到同步机制的保护，以避免数据竞争和结果不一致。
 **锁的粒度**是一个关键的权衡点。**细粒度锁**提供了更高的并发性，但可能带来较大的锁竞争开销。**粗粒度锁**降低了锁的开销，但会限制并行性，可能导致性能瓶颈。
 
+### 4.2
+ 在本实验中，删除了printf的自旋锁。即注释掉了两端对`spinlock_acquire`和`spinlock_release`的调用。
+ 主程序修改如下：
+ ```c
+ #include "arch/mod.h"
+#include "lib/mod.h"
+
+static volatile int started = 0;
+
+int main() {
+    int id = mycpuid();
+    if (id == 0) {
+
+        print_init();
+
+        started = 1;
+    } else {
+        while (!started)
+            ;
+    }
+    printf("cpu-%d is running! this is a long message which should be intertwined with that of another cpu, that happens because i disabled the spinlocks, WOW! THIS IS SO COOL! i am zhoujingrong and i did this experiment. the ultimate answer is 42 but i prefer 413.\n", id);
+
+    return 0;
+}
+```
+输出如下：
+qemu-system-riscv64   -machine virt -bios none -kernel target/kernel/kernel-qemu.elf   -m 128M -smp 2 -nographic  
+cpu-0c ipsu-1 is r running! this is a luong messagen which should be intertwined with that of another cpu, that happens because i disabled the spinlocks, WOW! THIS IS SO COOL! i am zhoujingrong and i did this experiment. the ultimatne ainnsgw!e rt hiiss  4i2s  ba utl oni g prmeesfesar ge41 w3h.i
+ch should be intertwined with that of another cpu, that happens because i disabled the spinlocks, WOW! THIS IS SO COOL! i am zhoujingrong and i did this experiment. the ultimate answer is 42 but i prefer 413.
+```
+可以明显看到printf语句在交替进行。
 ## 0xff. references
 - [labs assignments](https://gitee.com/xu-ke-123/ecnu-oslab-2025-task)

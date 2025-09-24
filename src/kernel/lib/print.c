@@ -100,9 +100,9 @@ void printf(const char *fmt, ...)
     va_start(ap, fmt);
     int i, c;
 
-    if (print_locking) {
-        spinlock_acquire(&print_lk);
-    }
+    // if (print_locking) {
+    //     spinlock_acquire(&print_lk);
+    // }
     assert(fmt != 0, "null fmt");
     for (i = 0; (c = fmt[i] & 0xff) != 0; i++) {
         if (c != '%') {
@@ -138,9 +138,9 @@ void printf(const char *fmt, ...)
                 break;
         }
     }
-    if (print_locking) {
-        spinlock_release(&print_lk);
-    }
+    // if (print_locking) {
+    //     spinlock_release(&print_lk);
+    // }
 }
 
 
