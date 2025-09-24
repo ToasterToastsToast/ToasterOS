@@ -165,6 +165,7 @@ int main() {
 }
 ```
 输出如下：
+```
 qemu-system-riscv64   -machine virt -bios none -kernel target/kernel/kernel-qemu.elf   -m 128M -smp 2 -nographic  
 cpu-0c ipsu-1 is r running! this is a luong messagen which should be intertwined with that of another cpu, that happens because i disabled the spinlocks, WOW! THIS IS SO COOL! i am zhoujingrong and i did this experiment. the ultimatne ainnsgw!e rt hiiss  4i2s  ba utl oni g prmeesfesar ge41 w3h.i
 ch should be intertwined with that of another cpu, that happens because i disabled the spinlocks, WOW! THIS IS SO COOL! i am zhoujingrong and i did this experiment. the ultimate answer is 42 but i prefer 413.
