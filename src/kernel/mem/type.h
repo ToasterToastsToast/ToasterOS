@@ -43,7 +43,15 @@ typedef struct alloc_region
 #define KERNEL_BASE 0x80000000ul
 
 // from kernel.ld
-extern char KERNEL_DATA[];
+/*
+它只是一个符号，表示某个内存地址。
+
+用 char 是为了便于地址算术（按字节计算）。
+
+extern表示外部定义过。
+连接器脚本提供地址。
+*/
+extern char KERNEL_DATA[]; 
 extern char ALLOC_BEGIN[];
 extern char ALLOC_END[];
 
