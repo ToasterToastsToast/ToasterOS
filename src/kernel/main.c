@@ -1,35 +1,35 @@
 #include "arch/mod.h"
 #include "lib/mod.h"
-
+#include "mem/mod.h"
 static volatile int started = 0;
 volatile static int over_1 = 0, over_2 = 0;
 static int* mem[1024];
 
 
-int main() {
-    int id = mycpuid();
-    if (id == 0) {
-        printf("┏┳┓┏┓┏┓┏┓┏┳┓┏┓┳┓  ┏┓┏┓\n");
-        printf(" ┃ ┃┃┣┫┗┓ ┃ ┣ ┣┫━━┃┃┗┓\n");
-        printf(" ┻ ┗┛┛┗┗┛ ┻ ┗┛┛┗  ┗┛┗┛\n");
-        puts("hello this is default lucky cpu-0! spin-lock disabled!");
+// int main() {
+//     int id = mycpuid();
+//     if (id == 0) {
+//         printf("┏┳┓┏┓┏┓┏┓┏┳┓┏┓┳┓  ┏┓┏┓\n");
+//         printf(" ┃ ┃┃┣┫┗┓ ┃ ┣ ┣┫━━┃┃┗┓\n");
+//         printf(" ┻ ┗┛┛┗┗┛ ┻ ┗┛┛┗  ┗┛┗┛\n");
+//         puts("hello this is default lucky cpu-0! spin-lock disabled!");
 
-        print_init();
+//         print_init();
 
-        started = 1;
-    } else {
-        while (!started)
-            ;
-    }
-    printf("cpu-%d is running!\n", id);
+//         started = 1;
+//     } else {
+//         while (!started)
+//             ;
+//     }
+//     printf("cpu-%d is running!\n", id);
 
-    return 0;
-}
-
-
+//     return 0;
+// }
 
 
-int test_1()
+
+
+int main()
 {
     int cpuid = r_tp();
 

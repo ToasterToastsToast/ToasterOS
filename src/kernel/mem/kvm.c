@@ -9,7 +9,7 @@ static pgtbl_t kernel_pgtbl;
 // 提示：使用 VA_TO_VPN + PTE_TO_PA + PA_TO_PTE
 pte_t *vm_getpte(pgtbl_t pgtbl, uint64 va, bool alloc)
 {
-
+    return NULL;
 }
 
 // 在pgtbl中建立 [va, va + len) -> [pa, pa + len) 的映射
