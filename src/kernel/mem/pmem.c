@@ -54,6 +54,11 @@ void pmem_init(void)
         user_prev->next = page;
         user_prev = page;
     }
+
+    // 在 pmem_init 的末尾
+    printf("pmem_init complete.\n");
+    printf("Kernel allocable pages: %d\n", kern_region.allocable);
+    printf("User allocable pages: %d\n", user_region.allocable);
 }
 
 // 尝试返回一个可分配的清零后的物理页
@@ -65,7 +70,7 @@ void *pmem_alloc(bool in_kernel)
 
     
     if(region->list_head.next == NULL)//无处分配
-        panic("no free page");
+        panic("pmem.c/pmem_alloc(): no free page");
 
     page_node_t * page = region->list_head.next; //拿出头部来分配
     region->list_head.next = page->next; // 将链表头指向下一个节点
@@ -82,9 +87,14 @@ void pmem_free(uint64 page, bool in_kernel)
 {
     alloc_region_t *region = in_kernel ? &kern_region : &user_region;
     spinlock_acquire(&region->lk);
+
+    // 在将页面归还到空闲链表之前，先将其内容清零
+    // memset((void*)page, 0, PGSIZE);
+
     page_node_t *node = (page_node_t *)page;
     node->next = region->list_head.next;
     region->list_head.next = node;
+    
     region->allocable += 1;
     spinlock_release(&region->lk);
 }
