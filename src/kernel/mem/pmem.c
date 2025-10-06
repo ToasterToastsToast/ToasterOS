@@ -47,7 +47,7 @@ void pmem_init(void)
 
     // 链表
     page_node_t *user_prev = &user_region.list_head;
-    for (char *p = user_alloc_start; p + PGSIZE <= (char *)ALLOC_END; p += PGSIZE)
+    for (char *p = user_alloc_start; p < (char *)ALLOC_END; p += PGSIZE)
     {
         page_node_t *page = (page_node_t *)p;
         page->next = NULL;
