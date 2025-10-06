@@ -2,14 +2,31 @@
 
 // 内核页表
 static pgtbl_t kernel_pgtbl;
+/*
+// satp寄存器相关
+#define SATP_SV39 (8L << 60)                                           // MODE = SV39
+#define MAKE_SATP(pagetable) (SATP_SV39 | (((uint64)pagetable) >> 12)) // 设置MODE和PPN字段
 
+// 获取虚拟地址中的虚拟页(VPN)信息 占9bit
+#define VA_SHIFT(level) (12 + 9 * (level))
+#define VA_TO_VPN(va, level) ((((uint64)(va)) >> VA_SHIFT(level)) & 0x1FF)
+
+// PA和PTE之间的转换
+#define PA_TO_PTE(pa)  ((((uint64)(pa)) >> 12) << 10)//10是符号位和RSW
+#define PTE_TO_PA(pte) (((uint64)(pte) >> 10) << 12) // 每个物理页大小是 4KB，因此页起始地址一定是 4KB 对齐的；即低 12 位为 0
+
+*/
 // 根据pagetable,找到va对应的pte
 // 若设置alloc=true 则在PTE无效时尝试申请一个物理页
 // 成功返回PTE, 失败返回NULL
 // 提示：使用 VA_TO_VPN + PTE_TO_PA + PA_TO_PTE
+
+/*
+VA: VPN VPN VPN offset
+*/
 pte_t *vm_getpte(pgtbl_t pgtbl, uint64 va, bool alloc)
 {
-
+    return NULL;
 }
 
 // 在pgtbl中建立 [va, va + len) -> [pa, pa + len) 的映射

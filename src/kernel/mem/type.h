@@ -109,8 +109,8 @@ typedef pte_t* pgtbl_t;
 #define VA_TO_VPN(va, level) ((((uint64)(va)) >> VA_SHIFT(level)) & 0x1FF)
 
 // PA和PTE之间的转换
-#define PA_TO_PTE(pa)  ((((uint64)(pa)) >> 12) << 10)
-#define PTE_TO_PA(pte) (((uint64)(pte) >> 10) << 12)
+#define PA_TO_PTE(pa)  ((((uint64)(pa)) >> 12) << 10)//10是符号位和RSW
+#define PTE_TO_PA(pte) (((uint64)(pte) >> 10) << 12) // 每个物理页大小是 4KB，因此页起始地址一定是 4KB 对齐的；即低 12 位为 0
 
 // 页面权限控制
 #define PTE_V (1 << 0) // valid
