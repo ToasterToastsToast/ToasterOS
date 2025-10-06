@@ -1,6 +1,6 @@
 #include "mod.h"
 // 内核空间和用户空间的可分配物理页分开描述
-static alloc_region_t kern_region, user_region;
+alloc_region_t kern_region, user_region; //按理说要static但是要测试case2
 
 /*
 typedef struct alloc_region
@@ -28,7 +28,7 @@ void pmem_init(void)
     kern_region.allocable = KERN_PAGES;
     kern_region.list_head.next = NULL;
 
-    // 链表
+    // 链表 尾插
     page_node_t *kern_prev = &kern_region.list_head; //指针指尾巴
     for (char *p = kern_alloc_start; p < user_alloc_start; p += PGSIZE)
     {
@@ -70,8 +70,9 @@ void *pmem_alloc(bool in_kernel)
     page_node_t * page = region->list_head.next; //拿出头部来分配
     region->list_head.next = page->next; // 将链表头指向下一个节点
     memset(page, 0, PGSIZE);
+    region->allocable -= 1;
     spinlock_release(&region->lk);
-
+    
     return page;
 }
 
@@ -84,5 +85,6 @@ void pmem_free(uint64 page, bool in_kernel)
     page_node_t *node = (page_node_t *)page;
     node->next = region->list_head.next;
     region->list_head.next = node;
+    region->allocable += 1;
     spinlock_release(&region->lk);
 }
