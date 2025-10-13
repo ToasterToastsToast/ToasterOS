@@ -12,8 +12,13 @@ void start()
 
     // 切换到S-mode后无法访问M-mode的寄存器
     // 所以需要将hartid存到可访问的寄存器tp
+    // 之后可以用mycpuid函数访问它
     int id = r_mhartid();
     w_tp(id);
+
+    // 委托S-mode处理所有trap
+
+    // 时钟中断初始化 (唯一需要在M-mode处理的中断)
 
     // 修改mstatus寄存器，假装上一个状态是S-mode
     uint64 status = r_mstatus();
@@ -22,7 +27,7 @@ void start()
     w_mstatus(status);
 
     // 设置M-mode的返回地址
-    w_mepc((uint64)main);//见文档
-    // 触发状态迁移，回到上一个状态
-    asm volatile("mret");//从xv6抄的，M-mode RETurn
+
+    // 触发状态迁移，回到上一个状态（M-mode->S-mode）
+
 }
