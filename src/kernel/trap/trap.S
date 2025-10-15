@@ -5,7 +5,7 @@
 .globl kernel_vector
 .align 4
 kernel_vector:
-
+        # 上下文保存-------------
         # 准备空间给32个通用寄存器
         addi sp, sp, -256
 
@@ -42,9 +42,10 @@ kernel_vector:
         sd t5, 232(sp)
         sd t6, 240(sp)
 
-        # trap的处理过程
+        # 进入核心的陷阱处理逻辑
         call trap_kernel_handler
 
+        # 上下文恢复------------------------
         # 寄存器状态恢复
         ld ra, 0(sp)
         ld sp, 8(sp)
@@ -82,7 +83,7 @@ kernel_vector:
         # 栈指针恢复
         addi sp, sp, 256
 
-        # 当前处于S-mode,返回调用者
+        # 当前处于S-mode,返回调用者。通过sret从陷阱处理执行流回到正常执行流
         sret
 
 # M-mode 中断处理 (包括时钟中断)

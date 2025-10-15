@@ -51,7 +51,7 @@ void trap_kernel_init()
     plic_init();
 
     // 系统时钟创建
-    timer_create();
+    timer_create();//TODO
 }
 
 // 初始化trap中各个核心独有的东西
@@ -69,7 +69,7 @@ void trap_kernel_inithart()
 
 // 在kernel_vector()里面调用
 // 内核态trap处理的核心逻辑
-void trap_kernel_handler()
+void trap_kernel_handler() //重要
 {
     uint64 sepc = r_sepc();       // 记录了发生异常时的PC值
     uint64 sstatus = r_sstatus(); // 与特权模式和中断相关的状态信息

@@ -2,6 +2,9 @@
 
 #include "mod.h"
 
+#define BACKSPACE 0x100
+#define C(x) ((x) - '@') // Control-x
+
 // from printf.c 终止输出的标志
 extern volatile int panicked;
 
@@ -49,12 +52,12 @@ void uart_putc_sync(int c)
 	pop_off();
 }
 
-// 单个字符输入
+// 单个字符输入--->不支持换行（因为enter是\r\n)，不支持删除（因为只是输出0x08没有回退和移动光标）
 // 失败返回-1
-int uart_getc_sync(void)
+int uart_getc_sync(void)//非阻塞式
 {
-	if (ReadReg(LSR) & 0x01)
-		return ReadReg(RHR);
+	if (ReadReg(LSR) & 0x01) // Line Status Register（串口状态寄存器）收到字符
+		return ReadReg(RHR); // Receiver Holding Register，UART 接收寄存器
 	else
 		return -1;
 }
@@ -62,11 +65,34 @@ int uart_getc_sync(void)
 // 中断处理(键盘输入->屏幕输出)
 void uart_intr(void)
 {
-	while (1)
+	while (1) // 不停尝试读取 UART
 	{
-		int c = uart_getc_sync();
-		if (c == -1)
-		break;
+		int c = uart_getc_sync(); // 尝试读一个字符
+		if (c == -1)			  // 有字符可读，退出循环
+			break;
+		uart_putc_sync(c); // 把读取的字符同步输出到屏幕或串口（回显）
+	}
+}
+
+// 发送一个字符并处理回显/换行/退格
+void uart_putc_sync_ext(int c)
+{
+	if (c == '\n')
+	{
+		// 终端通常需要回车+换行
+		uart_putc_sync('\r');
+		uart_putc_sync('\n');
+	}
+	else if (c == 0x08 || c == 0x7f)
+	{ // Backspace/Delete
+		// 光标回退、用空格覆盖再回退
+		uart_putc_sync(0x08);
+		uart_putc_sync(' ');
+		uart_putc_sync(0x08);
+	}
+	else
+	{
+		// 普通字符直接发送
 		uart_putc_sync(c);
 	}
 }
