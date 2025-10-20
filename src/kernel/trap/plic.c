@@ -1,4 +1,5 @@
 #include "mod.h"
+#include "../lib/mod.h"
 
 // PLIC初始化
 void plic_init()

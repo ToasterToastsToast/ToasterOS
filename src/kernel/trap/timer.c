@@ -1,4 +1,7 @@
 #include "mod.h"
+#include "../arch/mod.h" // <-- Add this line
+#include "../lock/mod.h" // 为了 spinlock_...
+#include "../lib/mod.h"  // 为了 printf
 
 /*-------------------- 工作在M-mode --------------------*/
 
@@ -45,17 +48,33 @@ static timer_t sys_timer;
 // 时钟创建
 void timer_create()
 {
-
+    // 初始化自旋锁
+    spinlock_init(&sys_timer.lk, "sys_timer");
+    // 初始化ticks计数器
+    sys_timer.ticks = 0;
 }
 
 // 时钟更新
 void timer_update()
 {
-
+    spinlock_acquire(&sys_timer.lk);
+    sys_timer.ticks++;
+    
+    // 为了通过"时钟滴答测试"
+    // 在这里添加打印，模拟时钟"滴答"
+    printf("tick\n"); 
+    
+    spinlock_release(&sys_timer.lk);
 }
 
 // 获取滴答数量 (不把sys_timer暴露出去, 只提供安全的访问接口)
 uint64 timer_get_ticks()
 {
-
+    uint64 current_ticks;
+    
+    spinlock_acquire(&sys_timer.lk);
+    current_ticks = sys_timer.ticks;
+    spinlock_release(&sys_timer.lk);
+    
+    return current_ticks;
 }

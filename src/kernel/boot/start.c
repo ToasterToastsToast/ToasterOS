@@ -17,8 +17,11 @@ void start()
     w_tp(id);
 
     // 委托S-mode处理所有trap
+    w_medeleg(0xffff);
 
     // 时钟中断初始化 (唯一需要在M-mode处理的中断)
+    // (SSIP, STIP, SEIP - S态软件/时钟/外设中断)
+    w_mideleg((1 << 1) | (1 << 5) | (1 << 9));
 
     // 修改mstatus寄存器，假装上一个状态是S-mode
     uint64 status = r_mstatus();
@@ -27,7 +30,8 @@ void start()
     w_mstatus(status);
 
     // 设置M-mode的返回地址
+    w_mepc((uint64)main);
 
     // 触发状态迁移，回到上一个状态（M-mode->S-mode）
-
+    asm volatile("mret");
 }
