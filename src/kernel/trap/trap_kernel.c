@@ -56,17 +56,18 @@ void trap_kernel_init() {
 }
 
 // 初始化trap中各个核心独有的东西
-void trap_kernel_inithart() {
+void trap_kernel_inithart()
+{
     // PLIC核心初始化
     plic_inithart();
 
     // 填写内核态中断处理函数
     w_stvec((uint64)kernel_vector);
 
-    // 打开中断
+    w_sie(r_sie() | (1 << 1) | (1 << 9));
+
     intr_on();
 }
-
 // 在kernel_vector()里面调用
 // 内核态trap处理的核心逻辑
 void trap_kernel_handler() {
@@ -78,7 +79,6 @@ void trap_kernel_handler() {
     // 确认trap来自S-mode且此时trap处于关闭状态
     assert(sstatus & SSTATUS_SPP, "trap_kernel_handler: not from s-mode");
     assert(intr_get() == 0, "trap_kernel_handler: interreput enabled");
-
     int trap_id = scause & 0xf;
 
     /* 高位bit标识了是中断还是异常 */
@@ -138,6 +138,7 @@ void external_interrupt_handler() {
 
 // 时钟中断处理 (基于CLINT)
 void timer_interrupt_handler() {
+ 
     // 由于sys_timer是共享资源, 但每个CPU都能收到时钟中断
     // 所以只需要指定一个CPU(CPU-0)负责更新时钟
     if (mycpuid() == 0)

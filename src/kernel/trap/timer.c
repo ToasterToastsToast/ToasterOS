@@ -14,6 +14,7 @@ static uint64 mscratch[NCPU][5];
 // 时钟初始化
 void timer_init()
 {
+
     // 获取当前cpuid
     int hartid = r_tp();
 
@@ -48,6 +49,7 @@ static timer_t sys_timer;
 // 时钟创建
 void timer_create()
 {
+
     // 初始化自旋锁
     spinlock_init(&sys_timer.lk, "sys_timer");
     // 初始化ticks计数器
@@ -57,13 +59,13 @@ void timer_create()
 // 时钟更新
 void timer_update()
 {
+
     spinlock_acquire(&sys_timer.lk);
     sys_timer.ticks++;
-    
     // 为了通过"时钟滴答测试"
     // 在这里添加打印，模拟时钟"滴答"
-    printf("tick\n"); 
-    
+    printf("%d\n",timer_get_ticks());
+
     spinlock_release(&sys_timer.lk);
 }
 
@@ -72,9 +74,7 @@ uint64 timer_get_ticks()
 {
     uint64 current_ticks;
     
-    spinlock_acquire(&sys_timer.lk);
     current_ticks = sys_timer.ticks;
-    spinlock_release(&sys_timer.lk);
-    
+
     return current_ticks;
 }

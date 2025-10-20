@@ -4,7 +4,7 @@
 __attribute__((aligned(16))) uint8 CPU_stack[4096 * NCPU];
 
 extern void main();
-
+extern void timer_init();
 void start()
 {
     // 暂时不开启分页，使用物理地址
@@ -22,6 +22,7 @@ void start()
     // 时钟中断初始化 (唯一需要在M-mode处理的中断)
     // (SSIP, STIP, SEIP - S态软件/时钟/外设中断)
     w_mideleg((1 << 1) | (1 << 5) | (1 << 9));
+    timer_init();
 
     // 修改mstatus寄存器，假装上一个状态是S-mode
     uint64 status = r_mstatus();
@@ -31,6 +32,7 @@ void start()
 
     // 设置M-mode的返回地址
     w_mepc((uint64)main);
+
 
     // 触发状态迁移，回到上一个状态（M-mode->S-mode）
     asm volatile("mret");
