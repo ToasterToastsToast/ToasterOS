@@ -69,7 +69,15 @@ ECNU Operating System 2025 Fall Final Project
 理论上头插和尾插都无所谓。
 
 ### 虚拟内存
+很大程度上，实现和物理内存类似。
+依然是三级页表，页表本身存储在物理页中，需要实现页表的增加、删除条目以及walk。 在初始化的时候要构建对于一些底层硬件的的对等映射。
 
+首先，对于获取pte条目，使用循环和二进制掩码来获取每一层的索引，直到最后一级页表返回pte，注意pte存储的是页码的映射，对于页内偏移不用考虑。注意途中要判断是否出现缺页异常。
+
+然后，对于 `vm_mappages` 函数，循环遍历从va开始，大小为size的地址区间，每次步进 4KB。 在循环中，为每一个虚拟页调用上一个 `vm_getpte` 来找到或创建对应的PTE。最后，将PTE的内容设置为对应的物理页号（从pa计算得出）和权限位 `perm`。
+
+`kvm_init` 函数中，先调用 `pmem_alloc()` 为内核创建一个顶级的页表 `kernel_pgtbl`。然后，调用 `vm_mappages`，为所有硬件寄存器区域和 0x80000000 到 0x80000000 + 128MB 的物理内存区域创建对等映射。
+最后，调用 `kvm_inithart` (每个核心都要调用): 将 `kernel_pgtbl` 的地址写入 `satp` 寄存器，为当前核心开启MMU地址翻译。
 
 ## 0xff. references
 - [labs assignments](https://gitee.com/xu-ke-123/ecnu-oslab-2025-task)
