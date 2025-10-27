@@ -64,7 +64,7 @@ void timer_update()
     sys_timer.ticks++;
     // 为了通过"时钟滴答测试"
     // 在这里添加打印，模拟时钟"滴答"
-    printf("%d\n",timer_get_ticks());
+    // printf("%d\n",timer_get_ticks());
 
     spinlock_release(&sys_timer.lk);
 }

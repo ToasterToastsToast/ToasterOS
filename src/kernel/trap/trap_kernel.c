@@ -52,7 +52,7 @@ void trap_kernel_init() {
     plic_init();
 
     // 系统时钟创建
-    timer_create();
+    timer_create();//TODO
 }
 
 // 初始化trap中各个核心独有的东西
