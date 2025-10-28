@@ -101,7 +101,7 @@ void uart_intr(void)
 	while (1) // 不停尝试读取 UART
 	{
 		int c = uart_getc_sync(); // 尝试读一个字符
-		if (c == -1)			  // 有字符可读，退出循环
+		if (c == -1)			  // 无字符可读，退出循环
 			break;
 		uart_putc_sync_ext(c); // 把读取的字符同步输出到屏幕或串口（回显）
 	}

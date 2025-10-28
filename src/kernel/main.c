@@ -58,7 +58,6 @@ int main()
         // 唤醒其他核心
         __sync_synchronize();
         started = 1;
-        echo_test();
     }
     else
     {
@@ -79,6 +78,9 @@ int main()
     // main 函数不再执行任何测试，
     // 只是无限循环。
     // 中断处理程序会在后台自动打印 "tick"。
+    if(started && cpuid==1){
+        echo_test();
+    }
     while (1)
         ;
 }
