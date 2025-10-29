@@ -9,14 +9,7 @@ static volatile int started = 0;
 void echo_test(void)
 {
 
-    const char *prompt = "--- Echo Test: Enter text  ---\n";
-    int i = 0;
-
-    while (prompt[i] != '\0')
-    {
-        uart_putc_sync_ext(prompt[i]);
-        i++;
-    }
+    printf("--- Echo Test: Enter text  ---\n");
 
     // 主循环：读取字符并回显
     while (1)
