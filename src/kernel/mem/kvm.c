@@ -195,13 +195,15 @@ void kvm_inithart() {
 }
 
 // 输出页表内容(for debug)
-void vm_print(pgtbl_t pgtbl) {
+void vm_print(pgtbl_t pgtbl)
+{
     // 顶级页表，次级页表，低级页表
     pgtbl_t pgtbl_2 = pgtbl, pgtbl_1 = NULL, pgtbl_0 = NULL;
     pte_t pte;
 
     printf("level-2 pgtbl: pa = %p\n", pgtbl_2);
-    for (int i = 0; i < PGSIZE / sizeof(pte_t); i++) {
+    for (int i = 0; i < PGSIZE / sizeof(pte_t); i++)
+    {
         pte = pgtbl_2[i];
         if (!((pte)&PTE_V))
             continue;
@@ -209,7 +211,8 @@ void vm_print(pgtbl_t pgtbl) {
         pgtbl_1 = (pgtbl_t)PTE_TO_PA(pte);
         printf(".. level-1 pgtbl %d: pa = %p\n", i, pgtbl_1);
 
-        for (int j = 0; j < PGSIZE / sizeof(pte_t); j++) {
+        for (int j = 0; j < PGSIZE / sizeof(pte_t); j++)
+        {
             pte = pgtbl_1[j];
             if (!((pte)&PTE_V))
                 continue;
@@ -217,13 +220,13 @@ void vm_print(pgtbl_t pgtbl) {
             pgtbl_0 = (pgtbl_t)PTE_TO_PA(pte);
             printf(".. .. level-0 pgtbl %d: pa = %p\n", j, pgtbl_2);
 
-            for (int k = 0; k < PGSIZE / sizeof(pte_t); k++) {
+            for (int k = 0; k < PGSIZE / sizeof(pte_t); k++)
+            {
                 pte = pgtbl_0[k];
                 if (!((pte)&PTE_V))
                     continue;
                 assert(!PTE_CHECK(pte), "vm_print: pte check fail (3)");
-                printf(".. .. .. physical page %d: pa = %p flags = %d\n", k,
-                       (uint64)PTE_TO_PA(pte), (int)PTE_FLAGS(pte));
+                printf(".. .. .. physical page %d: pa = %p flags = %d\n", k, (uint64)PTE_TO_PA(pte), (int)PTE_FLAGS(pte));
             }
         }
     }
