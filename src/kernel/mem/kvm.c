@@ -1,13 +1,15 @@
 #include "mod.h"
 
 // 内核页表
-static pgtbl_t kernel_pgtbl;
+// static pgtbl_t kernel_pgtbl;
+pgtbl_t kernel_pgtbl;
 // 从链接脚本 kernel.ld 中导入的地址符号
 // extern 告诉编译器这些变量在别处定义
 // 声明这些符号的存在，它们的值由链接器在链接时从 kernel.ld 提供
 extern char KERNEL_DATA[];
 extern char ALLOC_BEGIN[];
 extern char ALLOC_END[];
+extern char trampoline[];
 #define PLIC_SIZE 0x400000 // QEMU virt machine standard PLIC size
 #define CLINT_SIZE 0x10000
 
@@ -20,8 +22,8 @@ uint64 len_fit_pagesize(uint64 l) {
 
 /*
 // satp寄存器相关
-#define SATP_SV39 (8L << 60)                                           // MODE =
-SV39 #define MAKE_SATP(pagetable) (SATP_SV39 | (((uint64)pagetable) >> 12)) //
+#define SATP_SV39 (8L << 60)    // MODE =SV39 
+#define MAKE_SATP(pagetable) (SATP_SV39 | (((uint64)pagetable) >> 12)) //
 设置MODE和PPN字段
 
 // 获取虚拟地址中的虚拟页(VPN)信息 占9bit
@@ -155,6 +157,10 @@ void kvm_init() {
         panic("kvm_init: out of memory for kernel page table");
     }
     memset(kernel_pgtbl, 0, PGSIZE);
+
+    // 映射 trampoline 区域
+    // TRAMPOLINE 是在 type.h 中定义的虚拟地址
+    vm_mappages(kernel_pgtbl, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
 
     // 2. 映射硬件外设 (MMIO)
     // 权限: 读 + 写

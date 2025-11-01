@@ -43,15 +43,7 @@ typedef struct alloc_region
 #define KERNEL_BASE 0x80000000ul
 
 // from kernel.ld
-/*
-它只是一个符号，表示某个内存地址。
-
-用 char 是为了便于地址算术（按字节计算）。
-
-extern表示外部定义过。
-连接器脚本提供地址。
-*/
-extern char KERNEL_DATA[]; 
+extern char KERNEL_DATA[];
 extern char ALLOC_BEGIN[];
 extern char ALLOC_END[];
 
@@ -109,8 +101,8 @@ typedef pte_t* pgtbl_t;
 #define VA_TO_VPN(va, level) ((((uint64)(va)) >> VA_SHIFT(level)) & 0x1FF)
 
 // PA和PTE之间的转换
-#define PA_TO_PTE(pa)  ((((uint64)(pa)) >> 12) << 10)//10是符号位和RSW
-#define PTE_TO_PA(pte) (((uint64)(pte) >> 10) << 12) // 每个物理页大小是 4KB，因此页起始地址一定是 4KB 对齐的；即低 12 位为 0
+#define PA_TO_PTE(pa)  ((((uint64)(pa)) >> 12) << 10)
+#define PTE_TO_PA(pte) (((uint64)(pte) >> 10) << 12)
 
 // 页面权限控制
 #define PTE_V (1 << 0) // valid
@@ -130,3 +122,17 @@ typedef pte_t* pgtbl_t;
 
 // 定义一个非常大的VA, 正常来说所有VA不得大于它
 #define VA_MAX (1ul << 38)
+
+// S-mode <-> U-mode 切换过程用到的公共代码区域 (内核页表 + 用户页表)
+#define TRAMPOLINE     (VA_MAX - PGSIZE)
+
+// S-mode <-> U-mode 切换过程用到的临时数据区域 (用户页表)
+#define TRAPFRAME      (TRAMPOLINE - PGSIZE)
+
+#define USTACK_VA (TRAPFRAME - PGSIZE)
+
+// 各个进程的内核空间函数栈 (内核页表)
+#define KSTACK(procid) (TRAPFRAME - ((procid) + 1) * 2 * PGSIZE)
+
+// 用户空间基地址 (用户页表)
+#define USER_BASE      (PGSIZE)
