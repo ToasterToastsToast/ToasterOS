@@ -57,6 +57,21 @@ ECNU Operating System 2025 Fall Final Project
 
 #### 测试
 测试函数`echo_test`实现了一个简单的输入回显功能。程序首先打印提示信息，然后进入无限循环不断检查UART输入。当检测到有字符输入时（`uart_getc_sync`返回非-1值），立即通过`uart_putc_sync_ext`将字符回显到输出设备。这是一个**同步阻塞式**的回显测试，字符的读取和输出都是直接操作硬件完成的，不依赖缓冲区或中断处理机制。
+
+### 0x02 时钟中断
+
+首先，在一切的开始，我们要让 cpu 可以处理时钟中断，因此需要修改 `start()` 函数，在进入 `main()` 之前，设置 `medeleg` 和 `mideleg`，将时钟中断委托给 S 模式处理，然后进行时钟的初始化，也就是 `timer_init()`。
+
+接着，需要实现 S-mode 下的系统时钟，本质上是一个上锁的全局变量 `ticks`，每当时钟中断发生时，`ticks` 自增。
+
+- 时钟的创建就是：1、创建一个守护时钟的锁 2、初始化 `ticks = 0`
+- 更新时钟： 1、先获取锁，上锁 2、`ticks++` （为了测试，这里要加输出） 3、解锁 
+- 获取时钟的值： 1、获取锁，上锁 2、读取 `ticks` 的值 3、解锁
+
+最后，要处理 `trap_kernel_handler()` 中的时钟中断。检测到时钟中断后，调用 `timer_update()` 来更新时钟，处理完之后，恢复标志位，用于下一次可能的中断。
+
+还有，`main()` 函数中要调用陷阱的初始化处理函数。
+
 ## 0xff. references
 - [labs assignments](https://gitee.com/xu-ke-123/ecnu-oslab-2025-task)
 - [riscv简单常用汇编指令xv6](https://blog.csdn.net/surfaceyan/article/details/135030477)
