@@ -189,7 +189,11 @@ void kvm_init() {
 
     // 6. 映射 trampoline (VA == PA)
     // 权限: 读 + 执行 (R + X)
-    vm_mappages(kernel_pgtbl, (uint64)trampoline, (uint64)trampoline,
+    // vm_mappages(kernel_pgtbl, (uint64)trampoline, (uint64)trampoline,
+                // PGSIZE, PTE_R | PTE_X);
+    // 【【添加下面这行】】
+    // 映射 TRAMPOLINE 高虚拟地址
+    vm_mappages(kernel_pgtbl, TRAMPOLINE, (uint64)trampoline,
                 PGSIZE, PTE_R | PTE_X);
 
     // 7. 映射 proczero (pid=0) 的内核栈
