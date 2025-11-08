@@ -64,7 +64,7 @@ void trap_kernel_inithart()
     // 填写内核态中断处理函数
     w_stvec((uint64)kernel_vector);
 
-    w_sie(r_sie() | (1 << 1) | (1 << 9));
+    w_sie(r_sie() | SIE_SSIE | SIE_STIE | SIE_SEIE);
 
     intr_on();
 }
@@ -139,12 +139,19 @@ void external_interrupt_handler() {
 // 时钟中断处理 (基于CLINT)
 void timer_interrupt_handler() {
  
-    // 由于sys_timer是共享资源, 但每个CPU都能收到时钟中断
-    // 所以只需要指定一个CPU(CPU-0)负责更新时钟
     if (mycpuid() == 0)
         timer_update();
-    // 清除 SSIP bit (S-mode software interrupt pending)
-    // 宣布 S-mode 软件中断处理完成
-    // 在 trap.S 里面有对应的两条命令, 去找找
+
+    // 【【添加打印语句以进行测试】】
+    // 你可以每隔一段时间打印一次，例如：
+    if (mycpuid() == 0) {
+        // 从 timer.c 中我们知道 timer_get_ticks() 是受锁保护的
+        uint64 ticks = timer_get_ticks();
+        if(ticks % 20 == 0) { // 每20次tick打印一次
+             printf("[U] tick=%d\n", ticks);
+        }
+    }
+    
+    // 清除 SSIP bit
     w_sip(r_sip() & ~2);
 }

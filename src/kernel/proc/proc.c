@@ -34,13 +34,13 @@ pgtbl_t proc_pgtbl_init(uint64 trapframe)
     // VA: TRAMPOLINE, PA: (uint64)trampoline
     // 权限: 读, 执行, 用户态 (R, X, U)
     vm_mappages(pgtbl, TRAMPOLINE, (uint64)trampoline,
-                PGSIZE, PTE_R | PTE_X | PTE_U);
+                PGSIZE, PTE_R | PTE_X);
 
     // 3. 映射 trapframe
     // VA: TRAPFRAME, PA: trapframe (参数)
     // 权限: 读, 写, 用户态 (R, W, U)
     vm_mappages(pgtbl, TRAPFRAME, trapframe,
-                PGSIZE, PTE_R | PTE_W | PTE_U);
+                PGSIZE, PTE_R | PTE_W);
 
     return pgtbl;
 }
