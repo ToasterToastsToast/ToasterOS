@@ -3,7 +3,7 @@
 #include "mod.h"
 
 // 中断信息
-static char *interrupt_info[16] = {
+char *interrupt_info[16] = {
     "U-mode software interrupt", // 0
     "S-mode software interrupt", // 1
     "reserved-1",                // 2
@@ -23,7 +23,7 @@ static char *interrupt_info[16] = {
 };
 
 // 异常信息
-static char *exception_info[16] = {
+char *exception_info[16] = {
     "Instruction address misaligned", // 0
     "Instruction access fault",       // 1
     "Illegal instruction",            // 2

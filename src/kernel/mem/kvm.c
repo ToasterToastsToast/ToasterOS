@@ -146,7 +146,7 @@ void vm_unmappages(pgtbl_t pgtbl, uint64 va, uint64 len, bool freeit) {
     }
 }
 
-// 完成UART、CLINT、PLIC、内核代码区、内核数据区、可分配区域的页表映射
+// 完成UART、CLINT、PLIC、内核代码区、内核数据区、可分配区域、trampoline、内核栈的页表映射
 // 相当于部分填充kernel_pgtbl
 void kvm_init() {
     // 1. 为内核的顶级页表分配一个物理页
