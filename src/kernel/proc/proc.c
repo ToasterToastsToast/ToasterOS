@@ -106,15 +106,17 @@ void proc_make_first()
     // 9. 映射 ELF (code+data)
     // VA: 0x0, PA: initcode_pa
     // 权限: 读, 写, 执行, 用户态 (R, W, X, U)
-    vm_mappages(proczero.pgtbl, 0, initcode_pa,
-                PGSIZE, PTE_R | PTE_W | PTE_X | PTE_U);
-    
+    // vm_mappages(proczero.pgtbl, 0, initcode_pa,
+                // PGSIZE, PTE_R | PTE_W | PTE_X | PTE_U);
+    vm_mappages(proczero.pgtbl, PGSIZE, initcode_pa,
+            PGSIZE, PTE_R | PTE_W | PTE_X | PTE_U);
+
     // 设置 heap_top, 初始指向 code+data 之后
-    proczero.heap_top = PGSIZE; 
+    proczero.heap_top = PGSIZE * 2; // 应该是 PGSIZE*2，因为代码现在在第2页
 
     // 10. 设置 trapframe 中的初始值
-    // epc (即 user_to_kern_epc) 设置为 0, 用户代码从 0x0 开始执行
-    proczero.tf->user_to_kern_epc = 0;
+    // epc (即 user_to_kern_epc) 设置为 PGSIZE
+    proczero.tf->user_to_kern_epc = PGSIZE;
     // sp 设置为用户栈顶 (USTACK + PGSIZE)
     proczero.tf->sp = USTACK + PGSIZE;
 

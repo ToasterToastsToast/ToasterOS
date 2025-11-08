@@ -12,7 +12,7 @@
 // 定义内核栈的虚拟地址
 // 我们将 pid=0 的内核栈放在 TRAPFRAME 下方 (在内核看来)
 // 注意：这个 VA 必须与 kvm_init 中映射的 VA 一致
-#define KSTACK_VA(pid) (TRAMPOLINE - (pid + 2) * PGSIZE) // 举例：放在 TRAPFRAME 下方
+#define KSTACK_VA(pid) (TRAPFRAME - (pid + 2) * PGSIZE) // 举例：放在 TRAPFRAME 下方
 
 // 同优先级的上下文
 typedef struct context

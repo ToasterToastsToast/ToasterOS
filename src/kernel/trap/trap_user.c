@@ -104,6 +104,8 @@ void trap_user_return() {
     p->tf->user_to_kern_trapvector = (uint64)trap_user_handler; // trap处理函数
     p->tf->user_to_kern_hartid = r_tp();                        // hartid
 
+    w_sscratch((uint64)TRAPFRAME);
+
     // 3. 设置 sstatus 寄存器
     uint64 sstatus = r_sstatus();
     sstatus &= ~SSTATUS_SPP; // 清除 SPP: S-mode 的上一个状态是 U-mode
