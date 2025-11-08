@@ -1,5 +1,18 @@
 #pragma once
 #include "../arch/type.h"
+#include "../mem/type.h" // 导入 PGSIZE 和 VA_MAX
+
+// VA_MAX (1ul << 38) 在 mem/type.h 中定义
+#define TRAMPOLINE (VA_MAX - PGSIZE)
+// trapframe 紧挨着 trampoline
+#define TRAPFRAME (TRAMPOLINE - PGSIZE)
+// user stack 紧挨着 trapframe
+#define USTACK (TRAPFRAME - PGSIZE)
+
+// 定义内核栈的虚拟地址
+// 我们将 pid=0 的内核栈放在 TRAPFRAME 下方 (在内核看来)
+// 注意：这个 VA 必须与 kvm_init 中映射的 VA 一致
+#define KSTACK_VA(pid) (TRAMPOLINE - (pid + 2) * PGSIZE) // 举例：放在 TRAPFRAME 下方
 
 // 同优先级的上下文
 typedef struct context

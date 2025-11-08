@@ -1,4 +1,5 @@
 #include "mod.h"
+#include "../proc/type.h" // 导入 KSTACK_VA, TRAMPOLINE
 
 // 内核页表
 static pgtbl_t kernel_pgtbl;
@@ -8,6 +9,8 @@ static pgtbl_t kernel_pgtbl;
 extern char KERNEL_DATA[];
 extern char ALLOC_BEGIN[];
 extern char ALLOC_END[];
+extern char trampoline[]; // !! <-- 声明 trampoline 符号
+
 #define PLIC_SIZE 0x400000 // QEMU virt machine standard PLIC size
 #define CLINT_SIZE 0x10000
 
@@ -183,6 +186,25 @@ void kvm_init() {
     // 范围: 从 ALLOC_BEGIN 的地址到 ALLOC_END 的地址
     vm_mappages(kernel_pgtbl, (uint64)&ALLOC_BEGIN, (uint64)&ALLOC_BEGIN,
                 (uint64)&ALLOC_END - (uint64)&ALLOC_BEGIN, PTE_R | PTE_W);
+
+    // 6. 映射 trampoline (VA == PA)
+    // 权限: 读 + 执行 (R + X)
+    vm_mappages(kernel_pgtbl, (uint64)trampoline, (uint64)trampoline,
+                PGSIZE, PTE_R | PTE_X);
+
+    // 7. 映射 proczero (pid=0) 的内核栈
+    // 7.1. 为 KSTACK(0) 分配一个物理页
+    void* kstack_pa = pmem_alloc(true);
+    if(kstack_pa == NULL)
+        panic("kvm_init: out of memory for kstack(0)");
+    memset(kstack_pa, 0, PGSIZE);
+    
+    // 7.2. 映射 KSTACK_VA(0) -> kstack_pa
+    // 权限: 读 + 写 (R + W)
+    vm_mappages(kernel_pgtbl, KSTACK_VA(0), (uint64)kstack_pa,
+                PGSIZE, PTE_R | PTE_W);
+
+    // --- 【【LAB-4 结束】】 ---
 
     printf("kernel page table created successfully.\n");
 }
