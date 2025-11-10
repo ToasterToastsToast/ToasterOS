@@ -4,6 +4,8 @@
 #include "../../user/initcode.h"
 #define initcode target_user_initcode
 #define initcode_len target_user_initcode_len
+// initcode entry 偏移（相对于页面基址 PGSIZE）
+#define INITCODE_ENTRY_OFFSET 0x2c
 
 // in trampoline.S
 extern char trampoline[];
@@ -29,7 +31,7 @@ pgtbl_t proc_pgtbl_init(uint64 trapframe)
         panic("proc_pgtbl_init: out of memory");
     
     memset(pgtbl, 0, PGSIZE);
-
+    extern char trampoline[];
     // 2. 映射 trampoline
     //    内核和用户空间使用相同的虚拟地址 TRAMPOLINE
     //    权限：R-X (执行)
@@ -61,56 +63,55 @@ pgtbl_t proc_pgtbl_init(uint64 trapframe)
 */
 void proc_make_first()
 {
-    // 1. 设置PID
-    proczero.pid = 0;
+// 用户栈地址定义
+#define USTACK (TRAPFRAME - PGSIZE)
 
-    // 2. 分配并映射内核栈 (KStack)
-    // KSTACK(0) 是虚拟地址, kstack_pa 是物理地址
-    uint64 kstack_pa = (uint64)pmem_alloc(true);
-    if(kstack_pa == NULL)
-        panic("proc_make_first: out of memory for kstack");
-    memset((void*)kstack_pa, 0, PGSIZE);
-    proczero.kstack = KSTACK(0);
-    // 将这个 KStack 映射到 *内核* 页表中
-    vm_mappages(kernel_pgtbl, proczero.kstack, kstack_pa, PGSIZE, PTE_R | PTE_W);
+    proc_t *p = &proczero;
+    p->pid = 0;
 
-    // 3. 分配 Trapframe
-    proczero.tf = (trapframe_t*)pmem_alloc(true);
-    if(proczero.tf == NULL)
-        panic("proc_make_first: out of memory for trapframe");
-    memset(proczero.tf, 0, PGSIZE);
+    // 分配 trapframe
+    p->tf = (trapframe_t *)pmem_alloc(true);
+    if (p->tf == NULL)
+        panic("proc_make_first: alloc tf failed");
+    memset(p->tf, 0, PGSIZE);
 
-    // 4. 创建用户页表 (它会顺便映射 trampoline 和 trapframe)
-    proczero.pgtbl = proc_pgtbl_init((uint64)proczero.tf);
+    // 创建用户页表
+    p->pgtbl = proc_pgtbl_init((uint64)p->tf);
 
-    // 5. 分配并映射用户代码页 (initcode)
-    //    映射到虚拟地址 0
-    uint64 code_pa = (uint64)pmem_alloc(true);
-    if(code_pa == NULL)
-        panic("proc_make_first: out of memory for initcode");
-    memmove((void*)code_pa, initcode, initcode_len);
-    vm_mappages(proczero.pgtbl, 0, code_pa, PGSIZE, PTE_R | PTE_W | PTE_X | PTE_U);
-    proczero.heap_top = PGSIZE; // 堆顶在代码页之后
+    // 用户栈
+    void *ustack_pa = pmem_alloc(false);
+    if (ustack_pa == NULL)
+        panic("proc_make_first: alloc ustack failed");
+    vm_mappages(p->pgtbl, USTACK, (uint64)ustack_pa, PGSIZE, PTE_R | PTE_W | PTE_U);
+    p->ustack_npage = 1;
 
-    // 6. 分配并映射用户栈 (USTACK)
-    uint64 ustack_pa = (uint64)pmem_alloc(true);
-    if(ustack_pa == NULL)
-        panic("proc_make_first: out of memory for ustack");
-    memset((void*)ustack_pa, 0, PGSIZE);
-    // USTACK_VA 是在 type.h 中定义的用户栈虚拟地址
-    vm_mappages(proczero.pgtbl, USTACK_VA, ustack_pa, PGSIZE, PTE_R | PTE_W | PTE_U);
-    proczero.ustack_npage = 1;
+    // 用户代码页放在 USER_BASE
+    void *ucode_pa = pmem_alloc(false);
+    if (ucode_pa == NULL)
+        panic("proc_make_first: alloc ucode failed");
+    memset(ucode_pa, 0, PGSIZE);
+    memmove(ucode_pa, initcode, MIN((uint32)initcode_len, (uint32)PGSIZE));
+    vm_mappages(p->pgtbl, USER_BASE, (uint64)ucode_pa, PGSIZE, PTE_R | PTE_X | PTE_U);
 
-    // 7. 设置 Trapframe，为第一次进入用户态做准备
-    proczero.tf->user_to_kern_epc = 0;                     // 用户态入口点 (VA 0)
-    proczero.tf->sp = USTACK_VA + PGSIZE;     // 用户栈顶
+    p->heap_top = USER_BASE + PGSIZE;
 
-    // 8. 设置内核上下文，为第一次 swtch 做准备
-    proczero.ctx.ra = (uint64)trap_user_return; // swtch后执行的函数
-    proczero.ctx.sp = kstack_pa + PGSIZE;       // 内核栈顶
+    // 填写 trapframe 关键字段
+    p->tf->user_to_kern_satp = r_satp();
+    p->tf->user_to_kern_sp = KSTACK(0) + PGSIZE; // 内核栈顶
+    extern void trap_user_handler();
+    p->tf->user_to_kern_trapvector = (uint64)trap_user_handler;
+    p->tf->user_to_kern_epc = USER_BASE + INITCODE_ENTRY_OFFSET; // 用户程序入口点 (USER_BASE + ELF entry point)
+    p->tf->user_to_kern_hartid = r_tp();
+    p->tf->sp = USTACK + PGSIZE;
 
-    // 9. 切换上下文
-    //    从当前的 main (内核启动) 上下文 切换到 proczero 的内核上下文
-    cpu_t *cpu = mycpu();
-    swtch(&cpu->ctx, &proczero.ctx);
+    // 设置进程的内核栈和上下文
+    p->kstack = KSTACK(0);
+    p->ctx.sp = KSTACK(0) + PGSIZE;       // 内核栈顶
+    p->ctx.ra = (uint64)trap_user_return; // 返回地址
+
+    // 当前CPU绑定该进程并切回用户
+    cpu_t *c = mycpu();
+    c->proc = p;
+
+    trap_user_return();
 }

@@ -8,6 +8,8 @@
 #define SYS_helloworld 0
 #endif
 
+
+
 // in trampoline.S
 extern char trampoline[];  // 内核和用户切换的代码
 extern char user_vector[]; // 用户触发陷阱进入内核
@@ -69,34 +71,26 @@ void trap_user_handler()
 void trap_user_return()
 {
     proc_t *p = myproc();
+    trapframe_t *tf = p->tf;
 
-    // 1. 设置S-mode的陷阱入口为 user_vector
-    //    当在用户态发生trap时，会进入 user_vector
-    w_stvec((uint64)user_vector);
+    // stvec -> 用户向量（高地址）
+    uint64 uservec_va = TRAMPOLINE + ((uint64)user_vector - (uint64)trampoline);
+    w_stvec(uservec_va);
 
-    // 2. 准备 trapframe，供 trampoline.S 中的 user_vector 使用
-    // 1. 设置内核页表的SATP值
-    p->tf->user_to_kern_satp = MAKE_SATP(kernel_pgtbl);
-    // 2. 设置内核栈顶
-    p->tf->user_to_kern_sp = p->kstack + PGSIZE;
-    // 3. 设置内核陷阱处理函数
-    p->tf->user_to_kern_trapvector = (uint64)trap_user_handler;
-    // 4. (可选但推荐) 设置内核的tp寄存器 (hartid)
-    p->tf->user_to_kern_hartid = r_tp();
+    // sscratch 写入 TRAPFRAME 虚拟地址
+    w_sscratch((uint64)TRAPFRAME);
 
-    // 3. 设置 SSTATUS 寄存器
-    uint64 sstatus = r_sstatus();
-    sstatus &= ~SSTATUS_SPP; // 清除SPP，表明返回到 U-mode
-    sstatus |= SSTATUS_SPIE; // 允许在 U-mode 响应中断
-    w_sstatus(sstatus);
+    // sret 到 U：清 SPP，置 SPIE
+    uint64 s = r_sstatus();
+    s &= ~SSTATUS_SPP;
+    s |= SSTATUS_SPIE;
+    w_sstatus(s);
 
-    // 4. 设置返回到 U-mode 后的 PC (程序计数器)
-    w_sepc(p->tf->user_to_kern_epc);
+    // 设置 sepc
+    w_sepc(tf->user_to_kern_epc);
 
-    // 5. 计算 user page table 的 satp 值
-    uint64 satp = MAKE_SATP(p->pgtbl);
-
-    // 6. 调用 trampoline.S 中的 user_return 汇编函数
-    //    它会负责切换页表、恢复GPRs、并执行 sret
-    user_return((uint64)p->tf, satp);
+    // 跳转 trampoline 的 user_return(trapframe_va, user_satp)
+    uint64 userret_va = TRAMPOLINE + ((uint64)user_return - (uint64)trampoline);
+    void (*ureturn)(trapframe_t *, uint64) = (void (*)(trapframe_t *, uint64))userret_va;
+    ureturn((trapframe_t *)TRAPFRAME, MAKE_SATP(p->pgtbl));
 }
