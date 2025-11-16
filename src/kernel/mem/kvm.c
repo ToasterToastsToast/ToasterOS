@@ -10,12 +10,7 @@ pgtbl_t kernel_pgtbl;
 extern char KERNEL_DATA[];
 extern char ALLOC_BEGIN[];
 extern char ALLOC_END[];
-<<<<<<< HEAD
 extern char trampoline[];
-=======
-extern char trampoline[]; // !! <-- 声明 trampoline 符号
-
->>>>>>> origin/lab-4-2-attempt
 #define PLIC_SIZE 0x400000 // QEMU virt machine standard PLIC size
 #define CLINT_SIZE 0x10000
 

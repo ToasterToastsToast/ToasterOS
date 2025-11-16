@@ -18,7 +18,6 @@ extern char user_vector[]; // 用户触发陷阱进入内核
 extern char user_return[]; // 内核处理完毕返回用户
 // extern char user_return[]; // 内核处理完毕返回用户
 // extern void user_return(uint64 tf, uint64 satp);
-extern void user_return(uint64, uint64); // <- 添加这行，声明为函数
 
 // in trap.S
 extern char
@@ -67,17 +66,17 @@ void trap_user_handler() {
         int trap_id = scause & 0xf;
         switch (trap_id) {
         case 8: // Environment call from U-mode (系统调用)
+            syscall();
+            // // 从 a7 寄存器获取系统调用号
+            // // (user_vector 已经将其保存在 trapframe 中)
+            // uint64 sys_num = p->tf->a7;
 
-            // 从 a7 寄存器获取系统调用号
-            // (user_vector 已经将其保存在 trapframe 中)
-            uint64 sys_num = p->tf->a7;
-
-            if (sys_num == SYS_helloworld) {
-                // 响应 lab-4 的核心目标
-                printf("proczero: hello world!\n");
-            } else {
-                printf("trap_user_handler: unknown syscall num %d\n", sys_num);
-            }
+            // if (sys_num == SYS_helloworld) {
+            //     // 响应 lab-4 的核心目标
+            //     printf("proczero: hello world!\n");
+            // } else {
+            //     printf("trap_user_handler: unknown syscall num %d\n", sys_num);
+            // }
 
             // !!重要!!: ecall 指令是异常, 但返回时 PC 必须 +4,
             // 否则会无限循环执行 ecall
