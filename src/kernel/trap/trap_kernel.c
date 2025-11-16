@@ -147,9 +147,9 @@ void timer_interrupt_handler() {
     if (mycpuid() == 0) {
         // 从 timer.c 中我们知道 timer_get_ticks() 是受锁保护的
         uint64 ticks = timer_get_ticks();
-        if(ticks % 20 == 0) { // 每20次tick打印一次
-             printf("[U] tick=%d\n", ticks);
-        }
+        // if(ticks % 20 == 0) { // 每20次tick打印一次
+        //      printf("[U] tick=%d\n", ticks);
+        // }
     }
     
     // 清除 SSIP bit

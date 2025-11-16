@@ -106,7 +106,61 @@ uint64 sys_copyinstr()
 */
 uint64 sys_brk()
 {
-    return -1;
+    printf("*");
+    proc_t *p = myproc();
+    // 1. 从 a0 寄存器获取请求的新堆顶地址
+    uint64 new_heap_top = p->tf->a0;
+    uint64 old_heap_top = p->heap_top;
+    uint64 result_top = 0;
+    const char *event_type = "no_change";
+
+    // 2. 查询当前堆顶
+    if (new_heap_top == 0)
+    {
+        // 用户请求查询当前堆顶位置
+        result_top = old_heap_top;
+        event_type = "look";
+    }
+
+    else if (new_heap_top > old_heap_top)
+    {
+        // 空间增加: old_heap_top < new_heap_top
+        uint32 len = new_heap_top - old_heap_top;
+        result_top = uvm_heap_grow(p->pgtbl, old_heap_top, len);
+        event_type = "grow"; // 标记事件类型
+    }
+    else if (new_heap_top < old_heap_top)
+    {
+        // 空间减少: old_heap_top > new_heap_top
+        uint32 len = old_heap_top - new_heap_top;
+        result_top = uvm_heap_ungrow(p->pgtbl, old_heap_top, len);
+        event_type = "ungrow"; // 标记事件类型
+    }
+    else
+    {
+        // 空间不变: old_heap_top == new_heap_top
+        result_top = old_heap_top;
+        event_type = "no_change"; // 标记事件类型
+    }
+
+    // 3. 处理结果和调试输出
+    if (result_top > 0)
+    {
+        // 成功，更新进程堆顶
+        p->heap_top = result_top;
+        // 打印成功事件：ret_heap_top 是 64 位地址，使用 %x
+        printf("%s event: ret_heap_top = %x\n", event_type, result_top);
+        return result_top;
+    }
+    else
+    {
+        // 失败 (result_top == 0 是失败的标志)
+        // 打印失败事件：Requested 和 Old 都是 64 位地址，使用 %x
+        printf("%s event: FAILED (Requested %x, Old %x)\n", event_type, new_heap_top, old_heap_top);
+
+        // 失败返回 -1 (约定)
+        return (uint64)-1;
+    }
 }
 
 /*

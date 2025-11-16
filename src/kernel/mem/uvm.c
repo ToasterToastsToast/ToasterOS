@@ -1,5 +1,7 @@
 #include "mod.h"
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
+
+#define ALIGN_UP(addr, size) (((addr) + (size) - 1) & ~((size) - 1))
 /*--------------------part-1: 关于内核空间<->用户空间的数据传递--------------------*/
 
 // 用户态地址空间[src, src+len) 拷贝至 内核态地址空间[dst, dst+len)
@@ -205,13 +207,104 @@ void uvm_munmap(uint64 begin, uint32 npages)
 // 用户堆空间增加, 返回新的堆顶地址 (注意栈顶最大值限制)
 uint64 uvm_heap_grow(pgtbl_t pgtbl, uint64 cur_heap_top, uint32 len)
 {
-}
+    // 计算新的堆顶地址 (虚拟地址)
+    uint64 new_heap_top = cur_heap_top + len;
 
+    // 1. 边界检查：新堆顶是否越过 MMAP_BEGIN (堆的上限)
+    if (new_heap_top > MMAP_BEGIN)
+    {
+        panic("uvm_heap_grow: new heap top exceeds MMAP_BEGIN\n");
+        return 0; // 失败返回 0
+    }
+
+    // 2. 计算需要映射的虚拟地址范围
+    // 堆总是从 cur_heap_top 开始向上增长。
+    // 但是页映射总是从页的起始地址开始。
+
+    // 起始虚拟地址：当前堆顶的页对齐地址
+    uint64 map_va_start = ALIGN_UP(cur_heap_top, PGSIZE);
+
+    // 如果 cur_heap_top 已经在页边界上，则 map_va_start 就是 cur_heap_top。
+    // 如果 cur_heap_top < map_va_start，说明 cur_heap_top 之前的空间已经在旧页中被映射。
+
+    // 终止虚拟地址：新堆顶的页对齐地址 (向上取整)
+    uint64 map_va_end = ALIGN_UP(new_heap_top, PGSIZE);
+
+    // 如果 map_va_end <= map_va_start，说明没有新增页，无需操作
+    if (map_va_end <= map_va_start)
+    {
+        return new_heap_top; // 堆顶增长但没有跨越页边界，直接返回新的堆顶
+    }
+
+    // 3. 计算需要分配的页数和总长度
+    uint64 map_len = map_va_end - map_va_start;
+    uint32 num_pages = (uint32)(map_len / PGSIZE);
+
+    // 4. 循环分配物理页面并映射
+    for (uint32 i = 0; i < num_pages; i++)
+    {
+        // 4.1 申请一页物理内存 (is_kernel = false, 用户页)
+
+        uint64 pa = (uint64)pmem_alloc(false); // ✅ 新: 移除 npage 参数
+
+        if (pa == 0)
+        {
+            printf("uvm_heap_grow: pmem_alloc failed for heap\n");
+            return 0;
+        }
+        // 4.2 计算当前要映射的虚拟地址
+        uint64 current_va = map_va_start + i * PGSIZE;
+
+        // 4.3 建立映射：用户可读写 (PTE_U | PTE_R | PTE_W)
+        // 假设 PTE_U, PTE_R, PTE_W 等权限位在 type.h 中有定义
+        // 这里的 len 是 PGSIZE (1页)
+        vm_mappages(pgtbl, current_va, pa, PGSIZE, PTE_U | PTE_R | PTE_W);
+    }
+
+    // 5. 成功返回新的堆顶地址
+    return new_heap_top;
+}
 // 用户堆空间减少, 返回新的堆顶地址
 uint64 uvm_heap_ungrow(pgtbl_t pgtbl, uint64 cur_heap_top, uint32 len)
 {
-}
+    // 计算新的堆顶地址 (虚拟地址)
+    uint64 new_heap_top = cur_heap_top - len;
 
+    // 1. 边界检查：新堆顶是否小于初始堆顶 (我们不能收缩到用户程序的初始数据段之下)
+    // 假设用户程序的初始数据段结束地址存储在某个全局变量或 proc 字段中，
+    // 这里我们简化处理，假设 new_heap_top 必须大于某个 MIN_HEAP_TOP
+    // 假设 MIN_HEAP_TOP 是 4KB，或者等于程序初始化的堆顶
+    // 为了简单，我们只要求它大于 0。
+    if (new_heap_top == 0)
+    {
+        return 0; // 堆顶不能收缩到 0
+    }
+
+    // 2. 计算需要解除映射的虚拟地址范围
+
+    // 终止虚拟地址：当前堆顶的页对齐地址 (向上取整)
+    uint64 unmap_va_end = ALIGN_UP(cur_heap_top, PGSIZE);
+
+    // 起始虚拟地址：新堆顶的页对齐地址 (向上取整)
+    uint64 unmap_va_start = ALIGN_UP(new_heap_top, PGSIZE);
+
+    // 如果 unmap_va_end <= unmap_va_start，说明没有跨越页边界，无需操作
+    if (unmap_va_end <= unmap_va_start)
+    {
+        return new_heap_top; // 堆顶收缩但没有跨越页边界，直接返回新的堆顶
+    }
+
+    // 3. 解除映射并释放页面
+    // 解映射的区域是 [unmap_va_start, unmap_va_end)
+    uint64 unmap_len = unmap_va_end - unmap_va_start;
+
+    // vm_unmappages(pgtbl, va, len, freeit)
+    vm_unmappages(pgtbl, unmap_va_start, unmap_len, true);
+    // freeit=true: 要求 vm_unmappages 释放物理页面
+
+    // 4. 成功返回新的堆顶地址
+    return new_heap_top;
+}
 // 处理函数栈增长导致的page fault事件
 // 成功返回new_ustack_npage，失败返回-1
 uint64 uvm_ustack_grow(pgtbl_t pgtbl, uint64 old_ustack_npage, uint64 fault_addr)

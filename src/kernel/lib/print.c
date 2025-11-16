@@ -48,23 +48,28 @@ static void printint(int xx, int base, int sign) {
 }
 
 /* %x */
-static void printptr(uint64 x) {
+static void printptr(uint64 x)
+{
     printchar('0');
     printchar('x');
-    for (int i = 0; i < (sizeof(uint64) * 2); i++, x <<= 4)
-        putchar(digits[x >> (sizeof(uint64) * 8 - 4)]);
+
+    for (int shift = 60; shift >= 0; shift -= 4)
+    {
+        uint64 nib = (x >> shift) & 0xF;
+        printchar(digits[nib]);
+    }
 }
 
-int putchar(int c) {
-    if (print_locking) {
-        spinlock_acquire(&print_lk);
-    }
-    uart_putc_sync(c);
-    if (print_locking) {
-        spinlock_release(&print_lk);
-    }
-    return c;
-}
+// int putchar(int c) {
+//     if (print_locking) {
+//         spinlock_acquire(&print_lk);
+//     }
+//     uart_putc_sync(c);
+//     if (print_locking) {
+//         spinlock_release(&print_lk);
+//     }
+//     return c;
+// }
 
 void puts(char *ptr) {
     if (print_locking) {
