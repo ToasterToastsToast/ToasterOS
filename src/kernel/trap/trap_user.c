@@ -1,4 +1,4 @@
-#include "../proc/mod.h"         // 需要 myproc()
+#include "../proc/mod.h"            // 需要 myproc()
 #include "../../user/syscall_num.h" // 需要 SYS_helloworld
 #include "mod.h"
 
@@ -9,8 +9,6 @@
 #ifndef SYS_helloworld
 #define SYS_helloworld 0
 #endif
-
-
 
 // in trampoline.S
 extern char trampoline[];  // 内核和用户切换的代码
@@ -29,7 +27,8 @@ extern char *exception_info[16]; // 异常错误信息
 
 // 在user_vector()里面调用
 // 用户态trap处理的核心逻辑
-void trap_user_handler() {
+void trap_user_handler()
+{
     proc_t *p = myproc();       // 获取当前进程
     uint64 scause = r_scause(); // 获取 trap 原因
     uint64 stval = r_stval();   // 获取 trap 附加信息
@@ -43,11 +42,13 @@ void trap_user_handler() {
     p->tf->user_to_kern_epc = sepc;
 
     // 3. 判断 trap 类型 (中断 还是 异常)
-    if (scause & 0x8000000000000000ul) {
+    if (scause & 0x8000000000000000ul)
+    {
         // --- 中断 ---
         // lab-4.md 要求测试中断是否正常工作
         int trap_id = scause & 0xf;
-        switch (trap_id) {
+        switch (trap_id)
+        {
         case 1: // S-mode software interrupt
         case 5: // S-mode timer interrupt (M-mode 委托)
             timer_interrupt_handler();
@@ -61,33 +62,36 @@ void trap_user_handler() {
             printf("scause %p, sepc %p, stval %p\n", scause, sepc, stval);
             panic("trap_user_handler: interrupt");
         }
-    } else {
+    }
+    else
+    {
         // --- 异常 ---
         int trap_id = scause & 0xf;
-        switch (trap_id) {
+        switch (trap_id)
+        {
         case 8: // Environment call from U-mode (系统调用)
             syscall();
-            // // 从 a7 寄存器获取系统调用号
-            // // (user_vector 已经将其保存在 trapframe 中)
-            // uint64 sys_num = p->tf->a7;
-
-            // if (sys_num == SYS_helloworld) {
-            //     // 响应 lab-4 的核心目标
-            //     printf("proczero: hello world!\n");
-            // } else {
-            //     printf("trap_user_handler: unknown syscall num %d\n", sys_num);
-            // }
-
-            // !!重要!!: ecall 指令是异常, 但返回时 PC 必须 +4,
-            // 否则会无限循环执行 ecall
             p->tf->user_to_kern_epc += 4;
             break;
 
+        case 13:                                                                                // Load Page Fault
+        case 15:                                                                                // Store/AMO Page Fault
+            printf("trap_user_handler: User Page Fault! scause=%x, stval=%x\n", scause, stval); // 添加调试输出
+            uint64 new_npage = uvm_ustack_grow(p->pgtbl, p->ustack_npage, stval);
+            // 尝试栈自动增长
+            if (new_npage != (uint64)-1)
+            {
+                // 成功处理缺页，返回用户态继续执行
+                printf("trap_user_handler: Stack successfully grown.\n"); // 添加调试输出
+                break;                                                    // 跳出 switch，进入 trap_user_return
+            }
+            // 如果栈增长失败或 stval 是不合理的 Page Fault 地址，则 fall through 到 default
+
         default:
-            // 其他异常 (如 Page Fault 等)
+            // 其他异常 (包括不合理的 Page Fault)
             printf("\nunexpected user exception: %s\n",
                    exception_info[trap_id]);
-            printf("scause %p, sepc %p, stval %p\n", scause, sepc, stval);
+            printf("scause %x, sepc %x, stval %x\n", scause, sepc, stval); // 使用 %x 打印 64 位地址
             panic("trap_user_handler: exception");
         }
     }
@@ -98,7 +102,8 @@ void trap_user_handler() {
 
 // 调用user_return()
 // 内核态返回用户态
-void trap_user_return() {
+void trap_user_return()
+{
     intr_off(); // 【【添加此行以关闭中断】】
     proc_t *p = myproc();
 
@@ -140,7 +145,6 @@ void trap_user_return() {
         (uint64)TRAMPOLINE + ((uint64)user_return - (uint64)trampoline);
     void (*user_return_func)(uint64, uint64) =
         (void (*)(uint64, uint64))user_return_addr;
-
 
     // 6. 调用汇编函数, 进入用户态
     //    此函数会切换页表, 恢复所有寄存器, 并执行 sret
