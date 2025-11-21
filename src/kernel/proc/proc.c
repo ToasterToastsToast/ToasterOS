@@ -117,6 +117,8 @@ void proc_make_first()
 
     // 设置 heap_top, 初始指向 code+data 之后
     proczero.heap_top = PGSIZE * 2; // 应该是 PGSIZE*2，因为代码现在在第2页
+    // [新增] 初始化 mmap 链表为空
+    proczero.mmap = NULL;
 
     // 10. 设置 trapframe 中的初始值
     // epc (即 user_to_kern_epc) 设置为 PGSIZE
