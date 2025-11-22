@@ -1,60 +1,34 @@
 // in initcode.c
 #include "sys.h"
 
-#define PGSIZE 4096
-// int test1()
-// {
-//     int L[5];
-//     char *s = "hello, world";
-//     syscall(SYS_copyout, L);
-//     syscall(SYS_copyin, L, 5);
-//     syscall(SYS_copyinstr, s);
-//     while (1)
-//         ;
-//     return 0;
-// }
-
-
-
-
-// int main()
-// {
-
-//     long long heap_top = 0;
-
-//     heap_top = syscall(SYS_brk, 0);
-//     heap_top = syscall(SYS_brk, heap_top + PGSIZE * 9);
-//     heap_top = syscall(SYS_brk, heap_top);
-//     heap_top = syscall(SYS_brk, heap_top - PGSIZE * 5);
-
-//     while (1)
-//         ;
-//     return 0;
-// }
+// 与内核保持一致
+#define VA_MAX       (1ul << 38)
+#define PGSIZE       4096
+#define MMAP_END     (VA_MAX - (16 * 256 + 2) * PGSIZE)
+#define MMAP_BEGIN   (MMAP_END - 64 * 256 * PGSIZE)
 
 int main()
 {
-    char tmp[PGSIZE * 4];
+    // 建议画图理解这些地址和长度的含义
 
-    tmp[PGSIZE * 3] = 'h';
-    tmp[PGSIZE * 3 + 1] = 'e';
-    tmp[PGSIZE * 3 + 2] = 'l';
-    tmp[PGSIZE * 3 + 3] = 'l';
-    tmp[PGSIZE * 3 + 4] = 'o';
-    tmp[PGSIZE * 3 + 5] = '\0';
+    // sys_mmap 测试 
+    syscall(SYS_mmap, MMAP_BEGIN + 4 * PGSIZE, 3 * PGSIZE);
+    syscall(SYS_mmap, MMAP_BEGIN + 10 * PGSIZE, 2 * PGSIZE);
+    syscall(SYS_mmap, MMAP_BEGIN + 2 * PGSIZE,  2 * PGSIZE);
+    syscall(SYS_mmap, MMAP_BEGIN + 12 * PGSIZE, 1 * PGSIZE);
+    syscall(SYS_mmap, MMAP_BEGIN + 7 * PGSIZE, 3 * PGSIZE);
+    syscall(SYS_mmap, MMAP_BEGIN, 2 * PGSIZE);
+    syscall(SYS_mmap, 0, 10 * PGSIZE);
 
-    syscall(SYS_copyinstr, tmp + PGSIZE * 3);
+    // sys_munmap 测试
+    syscall(SYS_munmap, MMAP_BEGIN + 10 * PGSIZE, 5 * PGSIZE);
+    syscall(SYS_munmap, MMAP_BEGIN, 10 * PGSIZE);
+    syscall(SYS_munmap, MMAP_BEGIN + 17 * PGSIZE, 2 * PGSIZE);
+    syscall(SYS_munmap, MMAP_BEGIN + 15 * PGSIZE, 2 * PGSIZE);
+    syscall(SYS_munmap, MMAP_BEGIN + 19 * PGSIZE, 2 * PGSIZE);
+    syscall(SYS_munmap, MMAP_BEGIN + 22 * PGSIZE, 1 * PGSIZE);
+    syscall(SYS_munmap, MMAP_BEGIN + 21 * PGSIZE, 1 * PGSIZE);
 
-    tmp[0] = 'w';
-    tmp[1] = 'o';
-    tmp[2] = 'r';
-    tmp[3] = 'l';
-    tmp[4] = 'd';
-    tmp[5] = '\0';
-
-    syscall(SYS_copyinstr, tmp);
-
-    while (1)
-        ;
+    while(1);
     return 0;
 }
