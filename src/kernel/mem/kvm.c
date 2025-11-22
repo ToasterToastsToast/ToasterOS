@@ -214,6 +214,14 @@ void kvm_init() {
 
     // --- 【【LAB-4 结束】】 ---
 
+    // 为所有进程分配和映射内核栈
+    for (int i = 0; i < N_PROC; i++) {
+        void *kstack_pa = pmem_alloc(true);
+        if (kstack_pa == NULL) panic("kvm_init: alloc kstack failed");
+        // KSTACK 宏定义在 type.h，确保每个进程有独立的内核栈虚拟地址
+        vm_mappages(kernel_pgtbl, KSTACK_VA(i), (uint64)kstack_pa, PGSIZE, PTE_R | PTE_W);
+    }
+
     printf("kernel page table created successfully.\n");
 }
 

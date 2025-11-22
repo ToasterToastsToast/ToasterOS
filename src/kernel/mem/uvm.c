@@ -82,7 +82,7 @@ void uvm_copyout(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len)
 
         // 6. 数据迁移：从内核源 (src + copied_len) 拷贝到用户页 (k_dst_addr)
         uint64 k_src_addr = src + copied_len;
-        memcpy((void *)k_dst_addr, (void *)k_src_addr, bytes_on_this_page);
+        memmove((void *)k_dst_addr, (void *)k_src_addr, bytes_on_this_page);
 
         // 7. 更新进度
         copied_len += bytes_on_this_page;

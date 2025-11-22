@@ -279,7 +279,17 @@ uint64 sys_munmap()
 */
 uint64 sys_print_str()
 {
-
+    uint64 str_va;
+    arg_uint64(0, &str_va);
+    
+    char buf[256]; // 缓冲区
+    // 从用户空间拷贝字符串
+    // 使用 uvm_copyin_str (需要在 uvm.c 中实现或已存在)
+    // 参数：页表, 内核缓冲区, 用户地址, 最大长度
+    uvm_copyin_str(myproc()->pgtbl, (uint64)buf, str_va, sizeof(buf));
+    
+    printf("%s", buf);
+    return 0;
 }
 
 /*
@@ -289,25 +299,28 @@ uint64 sys_print_str()
 */
 uint64 sys_print_int()
 {
-
+    int val;
+    arg_uint32(0, (uint32*)&val);
+    printf("%d", val);
+    return 0;
 }
 
 /*
     进程复制
     返回子进程的pid
 */
-uint64 sys_fork()
-{
-
+uint64 sys_fork() {
+    return proc_fork();
 }
 
 /*
     等待子进程退出
     uint64 addr_exit_state
 */
-uint64 sys_wait()
-{
-
+uint64 sys_wait() {
+    uint64 addr;
+    arg_uint64(0, &addr);
+    return proc_wait(addr);
 }
 
 /*
@@ -315,9 +328,11 @@ uint64 sys_wait()
     int exit_code
     不返回
 */
-uint64 sys_exit()
-{
-
+uint64 sys_exit() {
+    uint32 code;
+    arg_uint32(0, &code);
+    proc_exit(code);
+    return 0;
 }
 
 /*
@@ -325,15 +340,16 @@ uint64 sys_exit()
     uint32 ntick (1个tick大约0.1秒)
     成功返回0
 */
-uint64 sys_sleep()
-{
-
+uint64 sys_sleep() {
+    uint32 n;
+    arg_uint32(0, &n);
+    timer_wait(n);
+    return 0;
 }
 
 /*
     返回当前进程的pid
 */
-uint64 sys_getpid()
-{
-
+uint64 sys_getpid() {
+    return myproc()->pid;
 }

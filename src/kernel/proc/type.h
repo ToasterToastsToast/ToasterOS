@@ -1,6 +1,7 @@
 #pragma once
 #include "../arch/type.h"
 #include "../mem/type.h" // 导入 PGSIZE 和 VA_MAX
+#include "../lock/type.h" // 导入 spinlock_t
 
 // VA_MAX (1ul << 38) 在 mem/type.h 中定义
 #define TRAMPOLINE (VA_MAX - PGSIZE)

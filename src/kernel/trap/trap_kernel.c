@@ -114,6 +114,12 @@ void trap_kernel_handler() {
             panic("trap_kernel_handler");
         }
     }
+
+    if ((scause & 0x8000000000000000ul) && trap_id == 1) {
+        if(myproc() != NULL && myproc()->state == RUNNING) {
+            proc_yield();
+        }
+    }
 }
 
 // 外设中断处理 (基于PLIC，lab-3只需要识别和处理UART中断)

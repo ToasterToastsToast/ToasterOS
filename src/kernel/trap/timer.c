@@ -59,7 +59,6 @@ void timer_create()
 // 时钟更新
 void timer_update()
 {
-
     spinlock_acquire(&sys_timer.lk);
     sys_timer.ticks++;
     // 为了通过"时钟滴答测试"
@@ -67,20 +66,28 @@ void timer_update()
     // printf("%d\n",timer_get_ticks());
 
     spinlock_release(&sys_timer.lk);
+
+    // 唤醒所有在 sys_timer 上睡眠的进程 (sys_sleep 的进程)
+    proc_wakeup(&sys_timer);
 }
 
 // 获取滴答数量 (不把sys_timer暴露出去, 只提供安全的访问接口)
-uint64 timer_get_ticks()
-{
+uint64 timer_get_ticks() {
     uint64 current_ticks;
-    
+    spinlock_acquire(&sys_timer.lk);
     current_ticks = sys_timer.ticks;
-
+    spinlock_release(&sys_timer.lk);
     return current_ticks;
 }
 
 // 让进程睡眠ntick个时钟周期
-void timer_wait(uint64 ntick)
-{
-
+void timer_wait(uint64 ntick) {
+    spinlock_acquire(&sys_timer.lk);
+    uint64 target = sys_timer.ticks + ntick;
+    
+    while (sys_timer.ticks < target) {
+        // 使用 proc_sleep 进行睡眠，自动释放 sys_timer.lk
+        proc_sleep(&sys_timer, &sys_timer.lk);
+    }
+    spinlock_release(&sys_timer.lk);
 }
