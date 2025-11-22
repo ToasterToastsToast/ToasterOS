@@ -367,7 +367,7 @@ int proc_wait(uint64 addr) {
                     uvm_copyout(p->pgtbl, addr, (uint64)&code, sizeof(int));
                 }
                 proc_free(child);
-                spinlock_release(&child->lk); // 先释放子进程锁
+                // spinlock_release(&child->lk); // 先释放子进程锁
                 spinlock_release(&wait_lk);   // 再释放 wait 锁
                 return pid;
             }
