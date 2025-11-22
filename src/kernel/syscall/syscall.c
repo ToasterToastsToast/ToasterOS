@@ -2,12 +2,16 @@
 
 // 跳转表: 系统调用号 -> 系统调用服务函数
 static uint64 (*syscalls[])(void) = {
-    [SYS_copyin] sys_copyin,
-    [SYS_copyout] sys_copyout,
-    [SYS_copyinstr] sys_copyinstr,
     [SYS_brk] sys_brk,
     [SYS_mmap] sys_mmap,
     [SYS_munmap] sys_munmap,
+    [SYS_print_str] sys_print_str,
+    [SYS_print_int] sys_print_int,
+    [SYS_getpid] sys_getpid,
+    [SYS_fork] sys_fork,
+    [SYS_wait] sys_wait,
+    [SYS_exit] sys_exit,
+    [SYS_sleep] sys_sleep,
 };
 
 // 基于系统调用表的请求跳转
@@ -16,13 +20,10 @@ void syscall()
     proc_t *p = myproc();
 
     int sys_num = p->tf->a7;
-    if (sys_num < 0 || sys_num > SYS_MAX_NUM || syscalls[sys_num] == NULL)
-    {
+    if (sys_num < 0 || sys_num > SYS_MAX_NUM || syscalls[sys_num] == NULL) {
         printf("unknown syscall %d from pid = %d\n", sys_num, p->pid);
         panic("syscall");
-    }
-    else
-    {
+    } else {
         p->tf->a0 = syscalls[sys_num]();
     }
 }
@@ -38,7 +39,7 @@ void syscall()
 static uint64 arg_raw(int n)
 {
     proc_t *proc = myproc();
-
+    
     switch (n)
     {
     case 0:
