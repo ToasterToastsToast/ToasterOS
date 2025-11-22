@@ -86,8 +86,10 @@ void timer_wait(uint64 ntick) {
     uint64 target = sys_timer.ticks + ntick;
     
     while (sys_timer.ticks < target) {
+        printf("proc %d is sleeping!\n", myproc()->pid);
         // 使用 proc_sleep 进行睡眠，自动释放 sys_timer.lk
         proc_sleep(&sys_timer, &sys_timer.lk);
     }
+    printf("proc %d is wakeup!\n", myproc()->pid);
     spinlock_release(&sys_timer.lk);
 }

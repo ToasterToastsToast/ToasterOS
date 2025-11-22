@@ -219,6 +219,7 @@ void proc_make_first() {
     UNUSED -> RUNNABLE
 */
 int proc_fork() {
+    
     proc_t *p = myproc();
     proc_t *np = proc_alloc(); // 注意：proc_alloc 返回时已经持有了 np->lk
     if (np == NULL) return -1;
@@ -257,6 +258,7 @@ int proc_fork() {
     np->state = RUNNABLE;
     spinlock_release(&np->lk); // 释放锁，允许调度器调度子进程
 
+    // printf("called fork\n");
     return np->pid;
 }
 

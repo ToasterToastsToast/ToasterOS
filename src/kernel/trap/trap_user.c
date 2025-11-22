@@ -64,8 +64,8 @@ void trap_user_handler() {
         // --- 异常 ---
         switch (trap_id) {
         case 8: // Environment call from U-mode (系统调用)
-            syscall();
             p->tf->user_to_kern_epc += 4;
+            syscall();
             break;
 
         case 13: // Load Page Fault
