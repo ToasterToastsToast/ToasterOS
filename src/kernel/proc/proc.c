@@ -77,7 +77,7 @@ void proc_make_first()
 
     // 4. 申请 ustack 物理页
     uint64 ustack_pa = (uint64)pmem_alloc(false);
-    if (ustack_pa == NULL) {
+    if (ustack_pa == 0) {
         panic("proc_make_first: out of memory for ustack");
     }
     memset((void*)ustack_pa, 0, PGSIZE);
@@ -93,7 +93,7 @@ void proc_make_first()
 
     // 7. 申请 code+data 物理页
     uint64 initcode_pa = (uint64)pmem_alloc(false);
-    if (initcode_pa == NULL) {
+    if (initcode_pa == 0) {
         panic("proc_make_first: out of memory for initcode");
     }
 
