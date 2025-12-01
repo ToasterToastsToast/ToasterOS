@@ -1,19 +1,5 @@
 #pragma once
 #include "../arch/type.h"
-#include "../mem/type.h" // 导入 PGSIZE 和 VA_MAX
-#include "../lock/type.h" // 导入 spinlock_t
-
-// VA_MAX (1ul << 38) 在 mem/type.h 中定义
-#define TRAMPOLINE (VA_MAX - PGSIZE)
-// trapframe 紧挨着 trampoline
-#define TRAPFRAME (TRAMPOLINE - PGSIZE)
-// user stack 紧挨着 trapframe
-#define USTACK (TRAPFRAME - PGSIZE)
-
-// 定义内核栈的虚拟地址
-// 我们将 pid=0 的内核栈放在 TRAPFRAME 下方 (在内核看来)
-// 注意：这个 VA 必须与 kvm_init 中映射的 VA 一致
-#define KSTACK_VA(pid) (TRAPFRAME - (pid + 2) * PGSIZE) // 举例：放在 TRAPFRAME 下方
 
 // 同优先级的上下文
 typedef struct context
@@ -83,7 +69,6 @@ typedef struct trapframe
 typedef uint64 *pgtbl_t;
 typedef struct mmap_region mmap_region_t;
 
-
 /*
     可能的进程状态转换：
     UNUSED -> RUNNABLE 进程初始化
@@ -103,12 +88,11 @@ enum proc_state
     ZOMBIE,   // 濒临死亡
 };
 
-
 // 进程
 typedef struct proc
 {
-    int pid;             // 标识符
-    char name[16];       // 进程名称
+    int pid;       // 标识符
+    char name[16]; // 进程名称
 
     spinlock_t lk;         // 自旋锁, 保护下面4个字段
     enum proc_state state; // 进程状态
@@ -122,8 +106,8 @@ typedef struct proc
     mmap_region_t *mmap; // 用户态mmap区域
     trapframe_t *tf;     // 用户态内核态切换时的运行环境暂存空间
 
-    uint64 kstack;       // 内核栈的虚拟地址
-    context_t ctx;       // 内核态进程上下文
+    uint64 kstack; // 内核栈的虚拟地址
+    context_t ctx; // 内核态进程上下文
 } proc_t;
 
 // 系统中最多同时存在N_PROC个进程
