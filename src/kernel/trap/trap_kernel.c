@@ -144,13 +144,13 @@ void timer_interrupt_handler() {
 
     // 【【添加打印语句以进行测试】】
     // 你可以每隔一段时间打印一次，例如：
-    if (mycpuid() == 0) {
+    //if (mycpuid() == 0) {
         // 从 timer.c 中我们知道 timer_get_ticks() 是受锁保护的
-        uint64 ticks = timer_get_ticks();
+        //uint64 ticks = timer_get_ticks();
         // if(ticks % 20 == 0) { // 每20次tick打印一次
         //      printf("[U] tick=%d\n", ticks);
         // }
-    }
+    //}
     
     // 清除 SSIP bit
     w_sip(r_sip() & ~2);
