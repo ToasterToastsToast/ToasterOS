@@ -63,9 +63,23 @@ ECNU Operating System 2025 Fall Final Project
 在实际的内存操作中，`sys_brk` 调用 `uvm_heap_grow` 或 `uvm_heap_ungrow` 执行页级的分配与回收。流程是页对齐 → 逐页建立/删除 PTE → 更新堆顶页对齐保证了堆区变化不会破坏页表结构，而逐页操作确保系统能够严格控制映射边界。实际上这些是策略层，确定需要新/解除映射的页对齐虚拟地址范围，vm_mappages/vm_unmappages 才是机制层负责操作页表。完成内存操作后，`sys_brk` 再通过 `vm_print` 输出完整页表，使堆区的变化在系统层面可视化，从而构成一个功能完整且可调试的堆管理体系。
 
 
+
 ![Alt text](lab-manual/image-2.png)
 ![Alt text](lab-manual/image-1.png)
+### 栈
+`uvm_ustack_grow`采用按需分配策略。由于栈是从高地址向低地址增长，当程序访问到尚未映射的栈地址，触发缺页异常时，内核介入。uvm_ustack_grow 会确定导致异常的地址所在页，计算出需要映射的新页范围，然后分配物理页并建立映射。这种机制确保了栈空间能够高效、自动地向下扩展. 调试内容写的稍微详细了一些。
+![Alt text](lab-manual/image-3.png)
 
+### 边界
+在堆和栈的生长中，分别检查new_heap_top > MMAP_BEGIN和new_ustack_top_va < MMAP_END保障堆栈的隔离。对于越界时的处理有不同的选择。
+堆越界被视为系统完整性威胁，需触发`panic`。因其向高地址生长，若突破`MMAP_BEGIN`意味着用户进程可能正在入侵内核空间，将破坏整个系统的安全隔离，必须立即中止内核运行。
+栈越界则作为进程级错误处理，应避免`panic`。栈向低地址生长时，若扩展失败（如触及`MMAP_END`或物理内存不足），这通常仅影响当前进程。内核应通过返回错误或发送`SIGSEGV`信号终止该进程，从而保持系统整体稳定，使其他进程不受影响。
+
+## 任务3
+在`mmap.c`实现的离散内存资源管理器中，核心流程围绕一个静态预分配的节点池展开。初始化时，所有节点被串联成一个空闲链表。当调用`mmap_region_alloc()`时，系统会在自旋锁保护下从链表头部取出节点，若资源耗尽则触发`panic`；反之，`mmap_region_free()`则通过地址计算验证节点合法性后，将其安全插回链表头部。整个流程通过头部操作保证O(1)效率，并依靠自旋锁确保多核并发下的数据一致性。其设计体现了内核资源管理的典型模式：以固定资源池避免动态分配开销，通过锁机制保障线程安全。
+一开始列表用的头插，结果不是很有序，改尾插似乎好了。
+![Alt text](lab-manual/image.png)
+![Alt text](lab-manual/image-4.png)
 ## 0xff. references
 - [labs assignments](https://gitee.com/xu-ke-123/ecnu-oslab-2025-task)
 - [riscv简单常用汇编指令xv6](https://blog.csdn.net/surfaceyan/article/details/135030477)

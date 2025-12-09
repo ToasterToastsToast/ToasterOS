@@ -456,12 +456,10 @@ uint64 uvm_ustack_grow(pgtbl_t pgtbl, uint64 old_ustack_npage, uint64 fault_addr
 {
     proc_t *p = myproc();
 
-    // 1. 计算当前已分配栈区域的最低地址（栈顶）
-    // 栈是从 USTACK_START (高地址) 向下生长的
+    // 计算栈顶（最低地址）
     uint64 current_ustack_top_va = TRAPFRAME - old_ustack_npage * PGSIZE;
+   
 
-    // 2. 合法性检查 1：Page Fault 是否发生在栈边界之下？
-    // 如果 fault_addr >= current_ustack_top_va，说明访问了栈内或栈上方的非法区域
     if (fault_addr >= current_ustack_top_va)
     {
         printf("uvm_ustack_grow: ERROR: fault_addr %x is above current stack top %x\n",
@@ -469,11 +467,10 @@ uint64 uvm_ustack_grow(pgtbl_t pgtbl, uint64 old_ustack_npage, uint64 fault_addr
         return (uint64)-1;
     }
 
-    // 3. 计算需要映射的新页的 VA 范围
+    // 计算需要映射的新页的 VA 范围
     // 新的栈顶是 fault_addr 所在的页的起始地址
     uint64 new_ustack_top_va = TRUNC_PAGE_DOWN(fault_addr);
 
-    // 4. 合法性检查 2：是否越过 MMAP_END (栈的下限)
     if (new_ustack_top_va < MMAP_END)
     {
         printf("uvm_ustack_grow: ERROR: New stack top %x exceeds MMAP_END %x\n",
@@ -481,7 +478,7 @@ uint64 uvm_ustack_grow(pgtbl_t pgtbl, uint64 old_ustack_npage, uint64 fault_addr
         return (uint64)-1;
     }
 
-    // 5. 计算需要扩展的页面数量和映射范围
+    // 计算需要扩展的页面数量和映射范围
     // 映射范围是 [new_ustack_top_va, current_ustack_top_va)
     uint64 grow_len = current_ustack_top_va - new_ustack_top_va;
     uint32 num_pages_to_grow = (uint32)(grow_len / PGSIZE);
@@ -489,22 +486,21 @@ uint64 uvm_ustack_grow(pgtbl_t pgtbl, uint64 old_ustack_npage, uint64 fault_addr
     printf("uvm_ustack_grow: Growing stack by %d pages (VA range [%x, %x))\n",
            num_pages_to_grow, new_ustack_top_va, current_ustack_top_va);
 
-    // 6. 循环分配和映射
-    // 从最低地址开始映射，以 new_ustack_top_va 为起点
+    // 循环分配和映射
+    // 从最低地址开始
     uint64 map_va = new_ustack_top_va;
     for (uint32 i = 0; i < num_pages_to_grow; i++)
     {
-        // 6.1 申请一页物理内存 (用户页)
+        //申请一页物理内存 (用户页)
         uint64 pa = (uint64)pmem_alloc(false);
 
         if (pa == 0)
         {
             printf("uvm_ustack_grow: ERROR: pmem_alloc failed for stack, cannot grow!\n");
-            // WARNING: 真实系统中，分配失败需要回滚之前已分配的页面！
             return (uint64)-1;
         }
 
-        // 6.2 建立映射：用户可读写 (PTE_U | PTE_R | PTE_W)
+       
         vm_mappages(pgtbl, map_va, pa, PGSIZE, PTE_U | PTE_R | PTE_W);
 
         printf("uvm_ustack_grow: Mapping VA %x to PA %x\n", map_va, pa);
@@ -512,7 +508,7 @@ uint64 uvm_ustack_grow(pgtbl_t pgtbl, uint64 old_ustack_npage, uint64 fault_addr
         map_va += PGSIZE; // 映射下一页
     }
 
-    // 7. 更新并返回新的栈页数
+    // 更新并返回新的栈页数
     uint64 new_ustack_npage = old_ustack_npage + num_pages_to_grow;
     p->ustack_npage = new_ustack_npage;
 
