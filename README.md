@@ -58,8 +58,13 @@ ECNU Operating System 2025 Fall Final Project
 
 实现处理堆的系统调用和用户函数。
 
+其实花了很久的是搞明白输出调试信息，`sys_brk` 作为系统调用入口，首先通过读取用户传入的地址参数，结合当前进程的 `heap_top` 来区分查询、增长、收缩或保持不变四类事件。正是依赖这一参数对比机制，`sys_brk` 能够自动判断事件类型，并据此输出对应的调试信息，包括请求地址、旧堆顶、变化的字节数及对齐后的页区间。
+
+在实际的内存操作中，`sys_brk` 调用 `uvm_heap_grow` 或 `uvm_heap_ungrow` 执行页级的分配与回收。流程是页对齐 → 逐页建立/删除 PTE → 更新堆顶页对齐保证了堆区变化不会破坏页表结构，而逐页操作确保系统能够严格控制映射边界。实际上这些是策略层，确定需要新/解除映射的页对齐虚拟地址范围，vm_mappages/vm_unmappages 才是机制层负责操作页表。完成内存操作后，`sys_brk` 再通过 `vm_print` 输出完整页表，使堆区的变化在系统层面可视化，从而构成一个功能完整且可调试的堆管理体系。
 
 
+![Alt text](lab-manual/image-2.png)
+![Alt text](lab-manual/image-1.png)
 
 ## 0xff. references
 - [labs assignments](https://gitee.com/xu-ke-123/ecnu-oslab-2025-task)

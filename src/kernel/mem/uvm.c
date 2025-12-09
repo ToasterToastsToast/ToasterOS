@@ -22,7 +22,7 @@ void uvm_copyin(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len)
         uint32 remaining_len = len - copied_len;
         uint32 bytes_on_this_page = MIN(remaining_len, (uint32)(PGSIZE - page_offset));
 
-        // 查找用户 PTE 
+        // 查找用户 PTE
         pte_t *pte = vm_getpte(pgtbl, current_uva, false);
 
         // 检查 PTE 是否有效且可读 (R)
@@ -60,7 +60,7 @@ void uvm_copyout(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len)
         uint32 remaining_len = len - copied_len;
         uint32 bytes_on_this_page = MIN(remaining_len, (uint32)(PGSIZE - page_offset));
 
-        // 查找用户 PTE 
+        // 查找用户 PTE
         pte_t *pte = vm_getpte(pgtbl, current_uva, false);
 
         // 检查 PTE 是否有效且可写
@@ -68,7 +68,6 @@ void uvm_copyout(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len)
         {
             // 地址无效未映射或不可写则失败
             panic("uvm_copyout: Invalid user address or permission denied.\n");
-            
         }
 
         // 转换地址：获取内核可访问的物理地址
@@ -97,25 +96,19 @@ void uvm_copyin_str(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 maxlen)
         uint64 current_uva = src + copied_len;
         uint64 page_offset = current_uva % PGSIZE;
 
-
         uint32 remaining_len = maxlen - copied_len;
         uint32 bytes_to_check = MIN(remaining_len, (uint32)(PGSIZE - page_offset));
 
-
         pte_t *pte = vm_getpte(pgtbl, current_uva, false);
-
 
         if (pte == NULL || !(*pte & PTE_V) || !(*pte & PTE_R))
         {
             panic("uvm_copyin_str: Invalid user address or permission denied.\n");
-
         }
-
 
         uint64 pa = PTE_TO_PA(*pte);
         char *k_src_addr = (char *)(pa + page_offset); // 内核源地址
         char *k_dst_addr = (char *)(dst + copied_len); // 内核目标地址
-
 
         for (uint32 i = 0; i < bytes_to_check; i++)
         {
@@ -128,7 +121,6 @@ void uvm_copyin_str(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 maxlen)
             copied_len++;
         }
     }
-
 }
 
 /*--------------------part-2: mmap_region相关--------------------*/
@@ -178,18 +170,24 @@ static uint64 uvm_mmap_find(mmap_region_t *head_mmap, uint64 len, mmap_region_t 
 {
     mmap_region_t *tmp = head_mmap;
     uint64 search_begin = MMAP_BEGIN;
-    
+
     // 从 MMAP_BEGIN 开始扫描，寻找第一个足够大的空隙
-    while (tmp != NULL) {
+    while (tmp != NULL)
+    {
         // 检查 [search_begin, tmp->begin) 是否足够大
-        if (tmp->begin >= search_begin + len) {
+        if (tmp->begin >= search_begin + len)
+        {
             *p_tmp_mmap = tmp;
-            if (tmp == head_mmap) {
+            if (tmp == head_mmap)
+            {
                 *p_last_mmap = NULL;
-            } else {
+            }
+            else
+            {
                 // 找到 tmp 的前驱节点
                 mmap_region_t *prev = head_mmap;
-                while (prev->next != tmp) {
+                while (prev->next != tmp)
+                {
                     prev = prev->next;
                 }
                 *p_last_mmap = prev;
@@ -200,13 +198,16 @@ static uint64 uvm_mmap_find(mmap_region_t *head_mmap, uint64 len, mmap_region_t 
         search_begin = tmp->begin + tmp->npages * PGSIZE;
         tmp = tmp->next;
     }
-    
+
     // 检查最后一个区域之后是否有空间
-    if (search_begin + len <= MMAP_END) {
+    if (search_begin + len <= MMAP_END)
+    {
         *p_last_mmap = NULL;
-        if (head_mmap != NULL) {
+        if (head_mmap != NULL)
+        {
             tmp = head_mmap;
-            while (tmp->next != NULL) tmp = tmp->next;
+            while (tmp->next != NULL)
+                tmp = tmp->next;
             *p_last_mmap = tmp;
         }
         *p_tmp_mmap = NULL;
@@ -223,63 +224,79 @@ void uvm_mmap(uint64 begin, uint32 npages, int perm)
 {
     proc_t *p = myproc();
     uint64 len = npages * PGSIZE;
-    
+
     mmap_region_t *last_mmap = NULL;
     mmap_region_t *tmp_mmap = NULL;
-    
+
     // 1. 确定地址
-    if (begin == 0) {
+    if (begin == 0)
+    {
         begin = uvm_mmap_find(p->mmap, len, &last_mmap, &tmp_mmap);
-        if (begin == 0) panic("uvm_mmap: no space found");
-    } else {
+        if (begin == 0)
+            panic("uvm_mmap: no space found");
+    }
+    else
+    {
         // 检查边界
-        if (begin < MMAP_BEGIN || begin + len > MMAP_END) panic("uvm_mmap: address out of range");
-        
+        if (begin < MMAP_BEGIN || begin + len > MMAP_END)
+            panic("uvm_mmap: address out of range");
+
         // 寻找插入位置
-        if (p->mmap == NULL || begin < p->mmap->begin) {
+        if (p->mmap == NULL || begin < p->mmap->begin)
+        {
             last_mmap = NULL;
             tmp_mmap = p->mmap;
-        } else {
+        }
+        else
+        {
             last_mmap = p->mmap;
-            while (last_mmap->next != NULL && last_mmap->next->begin < begin) {
+            while (last_mmap->next != NULL && last_mmap->next->begin < begin)
+            {
                 last_mmap = last_mmap->next;
             }
             tmp_mmap = last_mmap->next;
         }
     }
-    
+
     // 2. 申请节点并插入链表
     mmap_region_t *new_mmap = mmap_region_alloc();
     new_mmap->begin = begin;
     new_mmap->npages = npages;
     new_mmap->next = tmp_mmap;
-    
-    if (last_mmap == NULL) {
+
+    if (last_mmap == NULL)
+    {
         p->mmap = new_mmap;
-    } else {
+    }
+    else
+    {
         last_mmap->next = new_mmap;
     }
-    
+
     // 3. 尝试合并 (前向合并)
-    if (last_mmap != NULL && last_mmap->begin + last_mmap->npages * PGSIZE == new_mmap->begin) {
+    if (last_mmap != NULL && last_mmap->begin + last_mmap->npages * PGSIZE == new_mmap->begin)
+    {
         last_mmap->npages += new_mmap->npages;
         last_mmap->next = new_mmap->next;
         mmap_region_free(new_mmap);
-        new_mmap = last_mmap; 
+        new_mmap = last_mmap;
     }
-    
+
     // 4. 尝试合并 (后向合并)
-    if (new_mmap->next != NULL && new_mmap->begin + new_mmap->npages * PGSIZE == new_mmap->next->begin) {
+    if (new_mmap->next != NULL && new_mmap->begin + new_mmap->npages * PGSIZE == new_mmap->next->begin)
+    {
         mmap_region_t *next_mmap = new_mmap->next;
         new_mmap->npages += next_mmap->npages;
         new_mmap->next = next_mmap->next;
         mmap_region_free(next_mmap);
     }
-    
+
     // 5. 实际映射物理内存
-    for (uint64 va = begin; va < begin + len; va += PGSIZE) {
+    for (uint64 va = begin; va < begin + len; va += PGSIZE)
+    {
         void *pa = pmem_alloc(false);
-        if (pa == NULL) panic("uvm_mmap: pmem_alloc failed");
+        if (pa == NULL)
+            panic("uvm_mmap: pmem_alloc failed");
         vm_mappages(p->pgtbl, va, (uint64)pa, PGSIZE, perm);
     }
 }
@@ -290,49 +307,61 @@ void uvm_munmap(uint64 begin, uint32 npages)
 {
     proc_t *p = myproc();
     uint64 end = begin + npages * PGSIZE;
-    
-    if (begin < MMAP_BEGIN || end > MMAP_END) panic("uvm_munmap: address out of range");
-    
+
+    if (begin < MMAP_BEGIN || end > MMAP_END)
+        panic("uvm_munmap: address out of range");
+
     mmap_region_t *prev = NULL;
     mmap_region_t *curr = p->mmap;
-    
-    while (curr != NULL && curr->begin < end) {
+
+    while (curr != NULL && curr->begin < end)
+    {
         uint64 curr_end = curr->begin + curr->npages * PGSIZE;
-        
-        if (curr_end > begin) { // 有交集
+
+        if (curr_end > begin)
+        { // 有交集
             uint64 unmap_begin = (curr->begin > begin) ? curr->begin : begin;
             uint64 unmap_end = (curr_end < end) ? curr_end : end;
-            
+
             // 分情况讨论：完全包含、前半截、后半截、中间打洞
-            if (begin <= curr->begin && end >= curr_end) { // 1. 完全包含 -> 删除节点
+            if (begin <= curr->begin && end >= curr_end)
+            { // 1. 完全包含 -> 删除节点
                 vm_unmappages(p->pgtbl, curr->begin, curr->npages * PGSIZE, true);
                 mmap_region_t *to_free = curr;
-                if (prev == NULL) p->mmap = curr->next;
-                else prev->next = curr->next;
+                if (prev == NULL)
+                    p->mmap = curr->next;
+                else
+                    prev->next = curr->next;
                 curr = curr->next; // 这里的curr已经是下一个了，prev不变
                 mmap_region_free(to_free);
-                continue; 
-            } else if (begin <= curr->begin && end < curr_end) { // 2. 覆盖前半 -> 修改begin
+                continue;
+            }
+            else if (begin <= curr->begin && end < curr_end)
+            { // 2. 覆盖前半 -> 修改begin
                 uint32 unmap_npages = (unmap_end - unmap_begin) / PGSIZE;
                 vm_unmappages(p->pgtbl, unmap_begin, unmap_npages * PGSIZE, true);
                 curr->npages -= unmap_npages;
                 curr->begin = unmap_end;
-            } else if (begin > curr->begin && end >= curr_end) { // 3. 覆盖后半 -> 修改npages
+            }
+            else if (begin > curr->begin && end >= curr_end)
+            { // 3. 覆盖后半 -> 修改npages
                 uint32 unmap_npages = (unmap_end - unmap_begin) / PGSIZE;
                 vm_unmappages(p->pgtbl, unmap_begin, unmap_npages * PGSIZE, true);
                 curr->npages -= unmap_npages;
-            } else if (begin > curr->begin && end < curr_end) { // 4. 中间打洞 -> 分裂
+            }
+            else if (begin > curr->begin && end < curr_end)
+            { // 4. 中间打洞 -> 分裂
                 uint32 unmap_npages = (unmap_end - unmap_begin) / PGSIZE;
                 vm_unmappages(p->pgtbl, unmap_begin, unmap_npages * PGSIZE, true);
-                
+
                 mmap_region_t *new_node = mmap_region_alloc();
                 new_node->begin = end;
                 new_node->npages = (curr_end - end) / PGSIZE;
                 new_node->next = curr->next;
-                
+
                 curr->npages = (begin - curr->begin) / PGSIZE;
                 curr->next = new_node;
-                
+
                 prev = new_node;
                 curr = new_node->next;
                 continue;
@@ -345,88 +374,67 @@ void uvm_munmap(uint64 begin, uint32 npages)
 
 /*------------------part-3: 用户空间heap和stack管理相关------------------*/
 
-// 用户堆空间增加, 返回新的堆顶地址 (注意栈顶最大值限制)
+// 用户堆空间增加, 返回新的堆顶地址
 uint64 uvm_heap_grow(pgtbl_t pgtbl, uint64 cur_heap_top, uint32 len)
 {
     // 计算新的堆顶地址 (虚拟地址)
     uint64 new_heap_top = cur_heap_top + len;
 
-    // 1. 边界检查：新堆顶是否越过 MMAP_BEGIN (堆的上限)
     if (new_heap_top > MMAP_BEGIN)
     {
         panic("uvm_heap_grow: new heap top exceeds MMAP_BEGIN\n");
         return 0; // 失败返回 0
     }
 
-    // 2. 计算需要映射的虚拟地址范围
+    // 计算需要映射的虚拟地址范围
     // 堆总是从 cur_heap_top 开始向上增长。
     // 但是页映射总是从页的起始地址开始。
-
     // 起始虚拟地址：当前堆顶的页对齐地址
     uint64 map_va_start = ALIGN_UP(cur_heap_top, PGSIZE);
-
-    // 如果 cur_heap_top 已经在页边界上，则 map_va_start 就是 cur_heap_top。
-    // 如果 cur_heap_top < map_va_start，说明 cur_heap_top 之前的空间已经在旧页中被映射。
-
     // 终止虚拟地址：新堆顶的页对齐地址 (向上取整)
     uint64 map_va_end = ALIGN_UP(new_heap_top, PGSIZE);
 
-    // 如果 map_va_end <= map_va_start，说明没有新增页，无需操作
     if (map_va_end <= map_va_start)
     {
         return new_heap_top; // 堆顶增长但没有跨越页边界，直接返回新的堆顶
     }
 
-    // 3. 计算需要分配的页数和总长度
     uint64 map_len = map_va_end - map_va_start;
     uint32 num_pages = (uint32)(map_len / PGSIZE);
 
-    // 4. 循环分配物理页面并映射
+    // 循环分配物理页面并映射
     for (uint32 i = 0; i < num_pages; i++)
     {
-        // 4.1 申请一页物理内存 (is_kernel = false, 用户页)
-
-        uint64 pa = (uint64)pmem_alloc(false); // ✅ 新: 移除 npage 参数
+        // 申请一页用户页
+        uint64 pa = (uint64)pmem_alloc(false);
 
         if (pa == 0)
         {
             printf("uvm_heap_grow: pmem_alloc failed for heap\n");
             return 0;
         }
-        // 4.2 计算当前要映射的虚拟地址
         uint64 current_va = map_va_start + i * PGSIZE;
 
-        // 4.3 建立映射：用户可读写 (PTE_U | PTE_R | PTE_W)
-        // 假设 PTE_U, PTE_R, PTE_W 等权限位在 type.h 中有定义
-        // 这里的 len 是 PGSIZE (1页)
+        // 建立映射：用户可读写 (PTE_U | PTE_R | PTE_W)
         vm_mappages(pgtbl, current_va, pa, PGSIZE, PTE_U | PTE_R | PTE_W);
     }
 
-    // 5. 成功返回新的堆顶地址
     return new_heap_top;
 }
 // 用户堆空间减少, 返回新的堆顶地址
 uint64 uvm_heap_ungrow(pgtbl_t pgtbl, uint64 cur_heap_top, uint32 len)
 {
-    // 计算新的堆顶地址 (虚拟地址)
+
     uint64 new_heap_top = cur_heap_top - len;
 
-    // 1. 边界检查：新堆顶是否小于初始堆顶 (我们不能收缩到用户程序的初始数据段之下)
-    // 假设用户程序的初始数据段结束地址存储在某个全局变量或 proc 字段中，
-    // 这里我们简化处理，假设 new_heap_top 必须大于某个 MIN_HEAP_TOP
-    // 假设 MIN_HEAP_TOP 是 4KB，或者等于程序初始化的堆顶
-    // 为了简单，我们只要求它大于 0。
+    // 边界检查
     if (new_heap_top == 0)
     {
         return 0; // 堆顶不能收缩到 0
     }
 
-    // 2. 计算需要解除映射的虚拟地址范围
-
-    // 终止虚拟地址：当前堆顶的页对齐地址 (向上取整)
     uint64 unmap_va_end = ALIGN_UP(cur_heap_top, PGSIZE);
 
-    // 起始虚拟地址：新堆顶的页对齐地址 (向上取整)
     uint64 unmap_va_start = ALIGN_UP(new_heap_top, PGSIZE);
 
     // 如果 unmap_va_end <= unmap_va_start，说明没有跨越页边界，无需操作
@@ -435,15 +443,11 @@ uint64 uvm_heap_ungrow(pgtbl_t pgtbl, uint64 cur_heap_top, uint32 len)
         return new_heap_top; // 堆顶收缩但没有跨越页边界，直接返回新的堆顶
     }
 
-    // 3. 解除映射并释放页面
-    // 解映射的区域是 [unmap_va_start, unmap_va_end)
+    // 解除映射
     uint64 unmap_len = unmap_va_end - unmap_va_start;
 
-    // vm_unmappages(pgtbl, va, len, freeit)
     vm_unmappages(pgtbl, unmap_va_start, unmap_len, true);
-    // freeit=true: 要求 vm_unmappages 释放物理页面
 
-    // 4. 成功返回新的堆顶地址
     return new_heap_top;
 }
 // 处理函数栈增长导致的page fault事件
@@ -522,15 +526,21 @@ uint64 uvm_ustack_grow(pgtbl_t pgtbl, uint64 old_ustack_npage, uint64 fault_addr
 // ps: 顶级页表level = 3
 static void destroy_pgtbl(pgtbl_t pgtbl, uint32 level)
 {
-    for (int i = 0; i < 512; i++) {
+    for (int i = 0; i < 512; i++)
+    {
         pte_t pte = pgtbl[i];
-        if (pte & PTE_V) {
+        if (pte & PTE_V)
+        {
             uint64 child_pa = PTE_TO_PA(pte);
-            if (level > 0) {
+            if (level > 0)
+            {
                 destroy_pgtbl((pgtbl_t)child_pa, level - 1);
-            } else {
+            }
+            else
+            {
                 // 叶子节点：如果是用户页(PTE_U)，则释放物理内存
-                if (pte & PTE_U) {
+                if (pte & PTE_U)
+                {
                     pmem_free(child_pa, false);
                 }
             }
@@ -577,18 +587,19 @@ void uvm_copy_pgtbl(pgtbl_t old, pgtbl_t new, uint64 heap_top, uint64 ustack_npa
 {
     // 1. 复制代码段
     copy_range(old, new, USER_BASE, USER_BASE + PGSIZE);
-    
+
     // 2. 复制堆
     uint64 heap_end = (heap_top + PGSIZE - 1) & ~(PGSIZE - 1);
     if (heap_end > USER_BASE + PGSIZE)
         copy_range(old, new, USER_BASE + PGSIZE, heap_end);
-        
+
     // 3. 复制栈
     uint64 stack_begin = TRAPFRAME - ustack_npage * PGSIZE;
     copy_range(old, new, stack_begin, TRAPFRAME);
-    
+
     // 4. 复制 mmap 区域
-    for (mmap_region_t *t = mmap; t != NULL; t = t->next) {
+    for (mmap_region_t *t = mmap; t != NULL; t = t->next)
+    {
         copy_range(old, new, t->begin, t->begin + t->npages * PGSIZE);
     }
 }

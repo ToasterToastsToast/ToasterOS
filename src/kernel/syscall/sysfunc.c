@@ -81,60 +81,115 @@ uint64 sys_copyinstr()
 */
 uint64 sys_brk()
 {
-    printf("*");
     proc_t *p = myproc();
-    // 1. 从 a0 寄存器获取请求的新堆顶地址
-    uint64 new_heap_top = p->tf->a0;
-    uint64 old_heap_top = p->heap_top;
+    uint64 new_top;
+
+    /* 读取参数：new_heap_top（0 表示查询） */
+    arg_uint64(0, &new_top);
+
+    uint64 old_top = p->heap_top;
     uint64 result_top = 0;
-    const char *event_type = "no_change";
+    const char *event_type = "unknown";
 
-    // 2. 查询当前堆顶
-    if (new_heap_top == 0)
+    /* 查询当前堆顶 */
+    if (new_top == 0)
     {
-        // 用户请求查询当前堆顶位置
-        result_top = old_heap_top;
         event_type = "look";
-    }
-
-    else if (new_heap_top > old_heap_top)
-    {
-        // 空间增加: old_heap_top < new_heap_top
-        uint32 len = new_heap_top - old_heap_top;
-        result_top = uvm_heap_grow(p->pgtbl, old_heap_top, len);
-        event_type = "grow"; // 标记事件类型
-    }
-    else if (new_heap_top < old_heap_top)
-    {
-        // 空间减少: old_heap_top > new_heap_top
-        uint32 len = old_heap_top - new_heap_top;
-        result_top = uvm_heap_ungrow(p->pgtbl, old_heap_top, len);
-        event_type = "ungrow"; // 标记事件类型
-    }
-    else
-    {
-        // 空间不变: old_heap_top == new_heap_top
-        result_top = old_heap_top;
-        event_type = "no_change"; // 标记事件类型
-    }
-
-    // 3. 处理结果和调试输出
-    if (result_top > 0)
-    {
-        // 成功，更新进程堆顶
-        p->heap_top = result_top;
-        // 打印成功事件：ret_heap_top 是 64 位地址，使用 %x
-        printf("%s event: ret_heap_top = %x\n", event_type, result_top);
+        result_top = old_top;
+        printf("%s event: ret_heap_top = %p (query)\n", event_type, (void *)result_top);
+        vm_print(p->pgtbl);
         return result_top;
     }
-    else
-    {
-        // 失败 (result_top == 0 是失败的标志)
-        // 打印失败事件：Requested 和 Old 都是 64 位地址，使用 %x
-        printf("%s event: FAILED (Requested %x, Old %x)\n", event_type, new_heap_top, old_heap_top);
 
-        // 失败返回 -1 (约定)
-        return (uint64)-1;
+    /* 没变化 */
+    if (new_top == old_top)
+    {
+        event_type = "equal";
+        result_top = old_top;
+        printf("%s event: requested = %p, old = %p, ret = %p (no-op)\n",
+               event_type, (void *)new_top, (void *)old_top, (void *)result_top);
+        vm_print(p->pgtbl);
+        return result_top;
+    }
+
+    /* 增长 */
+    if (new_top > old_top)
+    {
+        event_type = "grow";
+        uint64 delta = new_top - old_top;
+
+        /* 计算将要映射的页对齐范围，便于日志 */
+        uint64 map_va_start = ALIGN_UP(old_top, PGSIZE);
+        uint64 map_va_end = ALIGN_UP(new_top, PGSIZE);
+        uint64 map_len = (map_va_end > map_va_start) ? (map_va_end - map_va_start) : 0;
+        uint32 map_pages = (uint32)(map_len / PGSIZE);
+
+        printf("%s event: requested = %p, old = %p, delta = %lu bytes\n",
+               event_type, (void *)new_top, (void *)old_top, (unsigned long)delta);
+        if (map_len == 0)
+        {
+            printf("  -> no new page mappings required (growth within existing page)\n");
+        }
+        else
+        {
+            printf("  -> mapping VA range [%p, %p) => %lu bytes, %u pages\n",
+                   (void *)map_va_start, (void *)map_va_end, (unsigned long)map_len, map_pages);
+        }
+
+        result_top = uvm_heap_grow(p->pgtbl, old_top, (uint32)delta);
+
+        /* uvm_heap_grow 在你的实现中失败可能返回 0；其他实现可能返回 (uint64)-1，兼容两种 */
+        if (result_top == 0 || result_top == (uint64)-1)
+        {
+            printf("%s event: FAILED (requested=%p, old=%p) -> uvm returned %p\n",
+                   event_type, (void *)new_top, (void *)old_top, (void *)result_top);
+            vm_print(p->pgtbl);
+            return (uint64)-1;
+        }
+
+        /* 成功 */
+        p->heap_top = result_top;
+        printf("%s event: success -> new heap_top = %p\n", event_type, (void *)result_top);
+        vm_print(p->pgtbl);
+        return result_top;
+    }
+
+    /* 收缩 */
+    /* new_top < old_top */
+    event_type = "ungrow";
+    {
+        uint64 delta = old_top - new_top;
+        uint64 unmap_va_start = ALIGN_UP(new_top, PGSIZE);
+        uint64 unmap_va_end = ALIGN_UP(old_top, PGSIZE);
+        uint64 unmap_len = (unmap_va_end > unmap_va_start) ? (unmap_va_end - unmap_va_start) : 0;
+        uint32 unmap_pages = (uint32)(unmap_len / PGSIZE);
+
+        printf("%s event: requested = %p, old = %p, shrink = %lu bytes\n",
+               event_type, (void *)new_top, (void *)old_top, (unsigned long)delta);
+        if (unmap_len == 0)
+        {
+            printf("  -> no page unmap required (shrink within same page)\n");
+        }
+        else
+        {
+            printf("  -> unmapping VA range [%p, %p) => %lu bytes, %u pages\n",
+                   (void *)unmap_va_start, (void *)unmap_va_end, (unsigned long)unmap_len, unmap_pages);
+        }
+
+        result_top = uvm_heap_ungrow(p->pgtbl, old_top, (uint32)delta);
+
+        if (result_top == 0 || result_top == (uint64)-1)
+        {
+            printf("%s event: FAILED (requested=%p, old=%p) -> uvm returned %p\n",
+                   event_type, (void *)new_top, (void *)old_top, (void *)result_top);
+            vm_print(p->pgtbl);
+            return (uint64)-1;
+        }
+
+        p->heap_top = result_top;
+        printf("%s event: success -> new heap_top = %p\n", event_type, (void *)result_top);
+        vm_print(p->pgtbl);
+        return result_top;
     }
 }
 
