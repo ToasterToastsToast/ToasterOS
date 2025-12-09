@@ -1,7 +1,7 @@
 #include "mod.h"
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define TRUNC_PAGE_DOWN(a) ((a) & ~(PGSIZE - 1))
-#define ALIGN_UP(addr, size) (((addr) + (size) - 1) & ~((size) - 1))
+
 /*--------------------part-1: 关于内核空间<->用户空间的数据传递--------------------*/
 
 // 用户态地址空间[src, src+len) 拷贝至 内核态地址空间[dst, dst+len)
@@ -12,22 +12,20 @@ void uvm_copyin(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len)
 {
     uint32 copied_len = 0;
 
-    // 循环直到拷贝完所有数据
     while (copied_len < len)
     {
-        // 1. 计算当前页的用户虚拟地址和页内偏移
+        // 计算当前页的用户虚拟地址和页内偏移
         uint64 current_uva = src + copied_len;
         uint64 page_offset = current_uva % PGSIZE;
 
-        // 2. 计算当前页最多还能拷贝多少字节
-        // 限制：不能超过本页的边界，也不能超过总剩余长度
+        // 计算当前页最多还能拷贝多少字节
         uint32 remaining_len = len - copied_len;
         uint32 bytes_on_this_page = MIN(remaining_len, (uint32)(PGSIZE - page_offset));
 
-        // 3. 查找用户 PTE (不允许分配新页表)
+        // 查找用户 PTE 
         pte_t *pte = vm_getpte(pgtbl, current_uva, false);
 
-        // 4. 检查 PTE 是否有效且可读 (R)
+        // 检查 PTE 是否有效且可读 (R)
         if (pte == NULL || !(*pte & PTE_V) || !(*pte & PTE_R))
         {
             // 如果地址无效、未映射或不可读，则失败。
@@ -35,16 +33,13 @@ void uvm_copyin(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len)
             panic("uvm_copyin: Invalid user address or permission denied\n");
         }
 
-        // 5. 转换地址：获取内核可访问的物理地址（PA）
-        // 假设 PA 就是内核可以直接访问的地址 (Direct Mapping)
         uint64 pa = PTE_TO_PA(*pte);
         uint64 k_src_addr = pa + page_offset; // 内核源地址 = 物理页基址 + 页内偏移
 
-        // 6. 数据迁移：从用户页 (k_src_addr) 拷贝到内核目标 (dst + copied_len)
+        // 从用户页 (k_src_addr) 拷贝到内核目标 (dst + copied_len)
         uint64 k_dst_addr = dst + copied_len;
         memmove((void *)k_dst_addr, (void *)k_src_addr, bytes_on_this_page);
 
-        // 7. 更新进度
         copied_len += bytes_on_this_page;
     }
 }
@@ -57,34 +52,34 @@ void uvm_copyout(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 len)
     // 循环直到拷贝完所有数据
     while (copied_len < len)
     {
-        // 1. 计算当前页的用户虚拟地址和页内偏移
+        // 计算当前页的用户虚拟地址和页内偏移
         uint64 current_uva = dst + copied_len;
         uint64 page_offset = current_uva % PGSIZE;
 
-        // 2. 计算当前页最多还能拷贝多少字节
+        // 计算当前页最多还能拷贝多少字节
         uint32 remaining_len = len - copied_len;
         uint32 bytes_on_this_page = MIN(remaining_len, (uint32)(PGSIZE - page_offset));
 
-        // 3. 查找用户 PTE (不允许分配新页表)
+        // 查找用户 PTE 
         pte_t *pte = vm_getpte(pgtbl, current_uva, false);
 
-        // 4. 检查 PTE 是否有效且可写 (W)
+        // 检查 PTE 是否有效且可写
         if (pte == NULL || !(*pte & PTE_V) || !(*pte & PTE_W))
         {
-            // 地址无效、未映射或不可写，则失败
+            // 地址无效未映射或不可写则失败
             panic("uvm_copyout: Invalid user address or permission denied.\n");
             
         }
 
-        // 5. 转换地址：获取内核可访问的物理地址（PA）
+        // 转换地址：获取内核可访问的物理地址
         uint64 pa = PTE_TO_PA(*pte);
         uint64 k_dst_addr = pa + page_offset; // 内核目标地址 = 物理页基址 + 页内偏移
 
-        // 6. 数据迁移：从内核源 (src + copied_len) 拷贝到用户页 (k_dst_addr)
+        // 数据迁移：从内核源 (src + copied_len) 拷贝到用户页 (k_dst_addr)
         uint64 k_src_addr = src + copied_len;
-        memcpy((void *)k_dst_addr, (void *)k_src_addr, bytes_on_this_page);
+        memmove((void *)k_dst_addr, (void *)k_src_addr, bytes_on_this_page);
 
-        // 7. 更新进度
+        // 更新进度
         copied_len += bytes_on_this_page;
     }
 }
@@ -98,47 +93,42 @@ void uvm_copyin_str(pgtbl_t pgtbl, uint64 dst, uint64 src, uint32 maxlen)
     // 循环直到达到最大长度
     while (copied_len < maxlen)
     {
-        // 1. 计算当前页的用户虚拟地址和页内偏移
+
         uint64 current_uva = src + copied_len;
         uint64 page_offset = current_uva % PGSIZE;
 
-        // 2. 计算当前页最多还能拷贝多少字节
-        // 限制：不能超过本页的边界，也不能超过总剩余长度
+
         uint32 remaining_len = maxlen - copied_len;
         uint32 bytes_to_check = MIN(remaining_len, (uint32)(PGSIZE - page_offset));
 
-        // 3. 查找用户 PTE
+
         pte_t *pte = vm_getpte(pgtbl, current_uva, false);
 
-        // 4. 检查 PTE 是否有效且可读
+
         if (pte == NULL || !(*pte & PTE_V) || !(*pte & PTE_R))
         {
             panic("uvm_copyin_str: Invalid user address or permission denied.\n");
 
         }
 
-        // 5. 转换地址：获取内核可访问的物理地址（PA）
+
         uint64 pa = PTE_TO_PA(*pte);
         char *k_src_addr = (char *)(pa + page_offset); // 内核源地址
         char *k_dst_addr = (char *)(dst + copied_len); // 内核目标地址
 
-        // 6. 逐字节检查和拷贝
+
         for (uint32 i = 0; i < bytes_to_check; i++)
         {
             char byte = k_src_addr[i];
             k_dst_addr[i] = byte;
-
-            // 检查是否遇到终止符
             if (byte == '\0')
             {
-                return; // 字符串拷贝完成
+                return;
             }
             copied_len++;
         }
     }
 
-    // 如果循环结束是因为达到了 maxlen，但最后一个拷贝的字节不是 '\0'，
-    // 则说明字符串被截断了，但拷贝操作本身已完成。
 }
 
 /*--------------------part-2: mmap_region相关--------------------*/

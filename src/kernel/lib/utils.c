@@ -32,27 +32,3 @@ int strncmp(const char *p, const char *q, uint32 n)
         return 0;
     return (uint8)*p - (uint8)*q;
 }
-
-// C 标准库函数返回 dst 的地址。
-void *memcpy(void *dst, const void *src, uint32 n)
-{
-    char *d = (char *)dst;
-    const char *s = (const char *)src;
-
-    // 如果长度为0，直接返回
-    if (n == 0)
-    {
-        return dst;
-    }
-
-    // 标准 memcpy 实现：按字节从头到尾复制
-    // 注意：这个实现不处理重叠区域，但 uvm_copyin/out 中使用时，
-    // 源地址是 PA，目标地址是内核 VA，通常不会重叠或需要 memmove 的特殊处理。
-    while (n--)
-    {
-        *d = *s;
-        d++;
-        s++;
-    }
-    return dst;
-}

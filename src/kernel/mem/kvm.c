@@ -72,6 +72,29 @@ pte_t *vm_getpte(pgtbl_t pgtbl, uint64 va, bool alloc) {
     return &pgtbl[offset];
 }
 
+// 辅助函数：打印PTE标志位
+static void print_pte_flags(pte_t pte)
+{
+    uint64 flags = 0;
+    if (pte & PTE_V)
+        flags |= 1; // Valid
+    if (pte & PTE_R)
+        flags |= 2; // Read
+    if (pte & PTE_W)
+        flags |= 4; // Write
+    if (pte & PTE_X)
+        flags |= 8; // Execute
+    if (pte & PTE_U)
+        flags |= 16; // User
+    if (pte & PTE_G)
+        flags |= 32; // Global
+    if (pte & PTE_A)
+        flags |= 64; // Accessed
+    if (pte & PTE_D)
+        flags |= 128; // Dirty
+    printf(" flags = %d", flags);
+}
+
 // 在pgtbl中建立 [va, va + len) -> [pa, pa + len) 的映射
 // 本质是找到va在页表对应位置的pte并修改它
 // 检查: va pa 应当是 page-aligned, len(字节数) > 0, va + len <= VA_MAX
