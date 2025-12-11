@@ -14,8 +14,7 @@
 extern char trampoline[];  // 内核和用户切换的代码
 extern char user_vector[]; // 用户触发陷阱进入内核
 extern char user_return[]; // 内核处理完毕返回用户
-// extern char user_return[]; // 内核处理完毕返回用户
-// extern void user_return(uint64 tf, uint64 satp);
+
 
 // in trap.S
 extern char
@@ -33,16 +32,16 @@ void trap_user_handler() {
     uint64 stval = r_stval();   // 获取 trap 附加信息
     uint64 sepc = r_sepc();     // 获取 trap 时的 PC
 
-    // 1. 切换到内核陷阱向量
+    // 切换到内核陷阱向量
     //    防止在 S-mode 再次发生 trap 时进入 user_vector
     w_stvec((uint64)kernel_vector);
 
-    // 2. 保存用户态 PC 到 trapframe
+    // 保存用户态 PC 到 trapframe
     p->tf->user_to_kern_epc = sepc;
 
     int trap_id = scause & 0xf;
 
-    // 3. 判断 trap 类型 (中断 还是 异常)
+    // 判断 trap 类型 (中断 还是 异常)
     if (scause & 0x8000000000000000ul) {
         // --- 中断 ---
         // lab-4.md 要求测试中断是否正常工作
@@ -98,7 +97,7 @@ void trap_user_handler() {
         proc_yield();
     }
 
-    // 4. 调用 "返回用户态" 流程
+    // 调用 "返回用户态" 流程
     trap_user_return();
 }
 
@@ -113,11 +112,11 @@ void trap_user_return()
 
     proc_t *p = myproc();
 
-    // 1. 再次设置 S-mode 陷阱入口为 user_vector (Trampoline 中的位置)
+    // 再次设置 S-mode 陷阱入口为 user_vector (Trampoline 中的位置)
     uint64 user_vector_addr = (uint64)TRAMPOLINE + ((uint64)user_vector - (uint64)trampoline);
     w_stvec(user_vector_addr);
 
-    // 2. 填充 trapframe 中的 "内核信息"
+    //    填充 trapframe 中的 "内核信息"
     //    (trampoline.S 中的 user_vector 会用到它们来恢复内核环境)
     p->tf->user_to_kern_satp = r_satp();                        // 内核页表
     p->tf->user_to_kern_sp = p->kstack + PGSIZE;                // 内核栈顶
@@ -127,16 +126,16 @@ void trap_user_return()
     // 将 sscratch 指向 trapframe，以便 user_vector 保存用户寄存器
     w_sscratch((uint64)TRAPFRAME);
 
-    // 3. 设置 sstatus 寄存器
+    // 设置 sstatus 寄存器
     uint64 sstatus = r_sstatus();
     sstatus &= ~SSTATUS_SPP; // 清除 SPP: S-mode 的上一个状态是 U-mode
     sstatus |= SSTATUS_SPIE; // 使能 U-mode 的中断
     w_sstatus(sstatus);
 
-    // 4. 设置 sepc (设置返回用户态时的 PC)
+    // 设置 sepc (设置返回用户态时的 PC)
     w_sepc(p->tf->user_to_kern_epc);
 
-    // 5. 准备调用 user_return (位于 trampoline.S)
+    //    准备调用 user_return (位于 trampoline.S)
     //    a0 = TRAPFRAME (用户虚拟地址)
     //    a1 = 用户页表 (SATP 格式)
     uint64 user_pgtbl_satp = MAKE_SATP(p->pgtbl);
@@ -145,7 +144,7 @@ void trap_user_return()
     uint64 user_return_addr = (uint64)TRAMPOLINE + ((uint64)user_return - (uint64)trampoline);
     void (*user_return_func)(uint64, uint64) = (void (*)(uint64, uint64))user_return_addr;
 
-    // 6. 调用汇编函数, 进入用户态
+    //    调用汇编函数, 进入用户态
     //    此函数会切换页表, 恢复所有寄存器, 并执行 sret (sret 会重新开启中断)
     user_return_func(TRAPFRAME, user_pgtbl_satp);
 

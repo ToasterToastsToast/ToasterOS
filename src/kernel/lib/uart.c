@@ -13,7 +13,7 @@ struct spinlock uart_tx_lock;
 char uart_tx_buf[UART_TX_BUF_SIZE]; // 缓冲区
 int uart_tx_w; // write next to uart_tx_buf[uart_tx_w++]
 int uart_tx_r; // read next from uart_tx_buf[uar_tx_r++]
-
+void uart_putc_sync_ext(int c);
 
 // uart 初始化
 void uart_init(void)

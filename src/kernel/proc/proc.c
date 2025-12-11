@@ -30,7 +30,7 @@ static proc_t *proczero;
 // 全局pid + 保护它的锁
 static int global_pid;
 static spinlock_t pid_lk;
-static spinlock_t wait_lk; // OKOS 经验：专门用于 wait/exit 同步的锁，防止死锁
+static spinlock_t wait_lk; 
 
 /* 获取一个pid */
 static int alloc_pid()
@@ -70,7 +70,7 @@ void proc_init() {
 proc_t *proc_alloc() {
     proc_t *p = NULL;
 
-    // 1. 寻找空闲槽位
+    // 寻找空闲槽位
     for (int i = 0; i < N_PROC; i++) {
         spinlock_acquire(&proc_list[i].lk);
         if (proc_list[i].state == UNUSED) {
@@ -81,7 +81,7 @@ proc_t *proc_alloc() {
     }
     if (p == NULL) return NULL;
 
-    // 2. 初始化基础信息
+    // 初始化基础信息
     p->pid = alloc_pid();
     p->state = UNUSED; // 分配完成前保持 UNUSED
     p->parent = NULL;
@@ -92,14 +92,14 @@ proc_t *proc_alloc() {
     p->ustack_npage = 0;
     memset(p->name, 0, sizeof(p->name));
 
-    // 3. 分配 Trapframe
+    // 分配 Trapframe
     if ((p->tf = (trapframe_t *)pmem_alloc(true)) == NULL) {
         spinlock_release(&p->lk);
         return NULL;
     }
     memset(p->tf, 0, PGSIZE);
 
-    // 4. 初始化页表 (映射 trampoline 和 trapframe)
+    // 初始化页表 (映射 trampoline 和 trapframe)
     if ((p->pgtbl = proc_pgtbl_init((uint64)p->tf)) == NULL) {
         pmem_free((uint64)p->tf, true);
         p->tf = NULL;
@@ -107,7 +107,7 @@ proc_t *proc_alloc() {
         return NULL;
     }
 
-    // 5. 初始化内核上下文 (Context)
+    // 初始化内核上下文 (Context)
     // 关键点：设置 ra 为 proc_return，这样第一次调度该进程时，
     // swtch 返回后会跳转到 proc_return，进而进入用户态
     memset(&p->ctx, 0, sizeof(p->ctx));

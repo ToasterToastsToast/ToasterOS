@@ -77,8 +77,7 @@ pte_t *vm_getpte(pgtbl_t pgtbl, uint64 va, bool alloc) {
 // 检查: va pa 应当是 page-aligned, len(字节数) > 0, va + len <= VA_MAX
 // 注意: perm 应该如何使用
 void vm_mappages(pgtbl_t pgtbl, uint64 va, uint64 pa, uint64 len, int perm) {
-    // 1. 防御性检查
-    // 检查地址和长度是否页对齐。%是取模运算符。
+
     assert(va % PGSIZE == 0, "vm_mappages: va not page-aligned");
     assert(pa % PGSIZE == 0, "vm_mappages: pa not page-aligned");
     assert(len > 0, "vm_mappages: len must be greater than 0");
@@ -89,24 +88,20 @@ void vm_mappages(pgtbl_t pgtbl, uint64 va, uint64 pa, uint64 len, int perm) {
     uint64 current_pa = pa;
     uint64 va_end = va + len;
 
-    // 2. 循环遍历所有需要映射的页
+    // 循环遍历所有需要映射的页
     for (; current_va < va_end; current_va += PGSIZE, current_pa += PGSIZE) {
-        // 3. 为当前的虚拟地址获取其对应的最后一级PTE的地址,
+        // 为当前的虚拟地址获取其对应的最后一级PTE的地址,
         // 必须允许分配，因为中间页表可能不存在
         pte_t *pte = vm_getpte(pgtbl, current_va, true);
 
-        // 3.1 检查 vm_getpte 是否成功
         if (pte == NULL) {
             panic("vm_mappages: out of memory (vm_getpte failed)");
         }
 
-        // 3.2 检查这个虚拟地址是否已经被映射过了
-        if (*pte & PTE_V) {
-            // 如果已经被映射，这是一个内核设计错误，直接panic
-            // panic("vm_mappages: remap");
-        }
 
-        // 4. 构建新的PTE并写入
+
+
+        // 构建新的PTE并写入
         //    - PA_TO_PTE(current_pa): 将物理地址转换为PTE中的PPN字段
         //    - perm: 附加传入的权限位 (R, W, X, U)
         //    - PTE_V: 设置有效位，激活这个映射
@@ -117,34 +112,32 @@ void vm_mappages(pgtbl_t pgtbl, uint64 va, uint64 pa, uint64 len, int perm) {
 // 解除pgtbl中[va, va+len)区域的映射
 // 如果freeit == true则释放对应物理页, 默认是用户的物理页
 void vm_unmappages(pgtbl_t pgtbl, uint64 va, uint64 len, bool freeit) {
-    // 1. 防御性检查
+
     assert(va % PGSIZE == 0, "vm_unmappages: va not page-aligned");
     len = len_fit_pagesize(len);
 
-    // assert(len % PGSIZE == 0, "vm_unmappages: len not page-aligned");
+
 
     uint64 current_va = va;
     uint64 va_end = va + len;
 
-    // 2. 循环遍历所有需要解映射的页
+    // 循环遍历所有需要解映射的页
     for (; current_va < va_end; current_va += PGSIZE) {
 
-        // 3. 查找当前虚拟地址对应的PTE，不允许分配新页表
+        // 查找当前虚拟地址对应的PTE，不允许分配新页表
         pte_t *pte = vm_getpte(pgtbl, current_va, false);
-
-        // 3.1 检查PTE是否存在且有效
         // 如果pte为NULL（中间页表不存在）或PTE本就无效，则无需操作，直接跳到下一个页
         if (pte == NULL || (*pte & PTE_V) == 0) {
             continue;
         }
 
-        // 4. 如果指定了freeit，则释放该PTE指向的物理页
+        // 如果指定了freeit，则释放该PTE指向的物理页
         if (freeit) {
             uint64 pa = PTE_TO_PA(*pte);
             pmem_free(pa, false); // 默认释放的是用户物理页
         }
 
-        // 5. 将PTE清零，使其无效。这是“解映射”的核心操作。
+        // 将PTE清零，使其无效。这是“解映射”的核心操作。
         *pte = 0;
     }
 }
@@ -152,7 +145,7 @@ void vm_unmappages(pgtbl_t pgtbl, uint64 va, uint64 len, bool freeit) {
 // 完成UART、CLINT、PLIC、内核代码区、内核数据区、可分配区域、trampoline、内核栈的页表映射
 // 相当于部分填充kernel_pgtbl
 void kvm_init() {
-    // 1. 为内核的顶级页表分配一个物理页
+    // 为内核的顶级页表分配一个物理页
     kernel_pgtbl = (pgtbl_t)pmem_alloc(true); // 页表属于内核资源
     if (kernel_pgtbl == NULL) {
         panic("kvm_init: out of memory for kernel page table");
@@ -163,7 +156,7 @@ void kvm_init() {
     // TRAMPOLINE 是在 type.h 中定义的虚拟地址
     vm_mappages(kernel_pgtbl, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
 
-    // 2. 映射硬件外设 (MMIO)
+    // 映射硬件外设 (MMIO)
     // 权限: 读 + 写
     // UART 串口
     vm_mappages(kernel_pgtbl, UART_BASE, UART_BASE, PGSIZE, PTE_R | PTE_W);
@@ -173,42 +166,40 @@ void kvm_init() {
     vm_mappages(kernel_pgtbl, CLINT_BASE, CLINT_BASE, CLINT_SIZE,
                 PTE_R | PTE_W);
 
-    // 3. 映射内核代码区 (.text)
+    // 映射内核代码区 (.text)
     // 权限: 读 + 执行
     // 范围: 从 0x80000000 到 KERNEL_DATA 的地址
     vm_mappages(kernel_pgtbl, 0x80000000, 0x80000000,
                 (uint64)&KERNEL_DATA - 0x80000000, PTE_R | PTE_X);
 
-    // 4. 映射内核数据区 (.rodata, .data, .bss)
+    // 映射内核数据区 (.rodata, .data, .bss)
     // 权限: 读 + 写
     // 范围: 从 KERNEL_DATA 的地址到 ALLOC_BEGIN 的地址
     vm_mappages(kernel_pgtbl, (uint64)&KERNEL_DATA, (uint64)&KERNEL_DATA,
                 (uint64)&ALLOC_BEGIN - (uint64)&KERNEL_DATA, PTE_R | PTE_W);
 
-    // 5. 映射可分配的物理内存区域
+    // 映射可分配的物理内存区域
     // 权限: 读 + 写
     // 范围: 从 ALLOC_BEGIN 的地址到 ALLOC_END 的地址
     vm_mappages(kernel_pgtbl, (uint64)&ALLOC_BEGIN, (uint64)&ALLOC_BEGIN,
                 (uint64)&ALLOC_END - (uint64)&ALLOC_BEGIN, PTE_R | PTE_W);
 
-    // 6. 映射 trampoline (VA == PA)
+    // 映射 trampoline (VA == PA)
     // 权限: 读 + 执行 (R + X)
-    // vm_mappages(kernel_pgtbl, (uint64)trampoline, (uint64)trampoline,
-                // PGSIZE, PTE_R | PTE_X);
-    // 【【添加下面这行】】
+
     // 映射 TRAMPOLINE 高虚拟地址
     vm_mappages(kernel_pgtbl, TRAMPOLINE, (uint64)trampoline,
                 PGSIZE, PTE_R | PTE_X);
 
-    // 7. 映射 proczero (pid=0) 的内核栈
-    // 7.1. 为 KSTACK(0) 分配一个物理页
+    // 映射 proczero (pid=0) 的内核栈
+
     void* kstack_pa = pmem_alloc(true);
     if(kstack_pa == NULL)
         panic("kvm_init: out of memory for kstack(0)");
     memset(kstack_pa, 0, PGSIZE);
     
-    // 7.2. 映射 KSTACK_VA(0) -> kstack_pa
-    // 权限: 读 + 写 (R + W)
+    // 映射 KSTACK_VA(0) -> kstack_pa
+    // 权限: 读 + 写 
     vm_mappages(kernel_pgtbl, KSTACK_VA(0), (uint64)kstack_pa,
                 PGSIZE, PTE_R | PTE_W);
 
