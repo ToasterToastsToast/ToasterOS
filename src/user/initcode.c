@@ -1,4 +1,4 @@
-// test-1: sys_getpid and sys_print
+// // test-1: sys_getpid and sys_print
 // #include "sys.h"
 
 // int main()
@@ -14,17 +14,17 @@
 
 
 // test-2: fork
-// #include "sys.h"
+#include "sys.h"
 
-// int main()
-// {
-// 	syscall(SYS_print_str, "level-1!\n");
-// 	syscall(SYS_fork);
-// 	syscall(SYS_print_str, "level-2!\n");
-// 	syscall(SYS_fork);
-// 	syscall(SYS_print_str, "level-3!\n");
-// 	while(1);
-// }
+int main()
+{
+	syscall(SYS_print_str, "level-1!\n");
+	syscall(SYS_fork);
+	syscall(SYS_print_str, "level-2!\n");
+	syscall(SYS_fork);
+	syscall(SYS_print_str, "level-3!\n");
+	while(1);
+}
 
 
 // test-3: fork wait exit 综合测试
@@ -83,22 +83,22 @@
 // }
 
 // test-4: sleep
-#include "sys.h"
+// #include "sys.h"
 
-int main()
-{
-	int pid = syscall(SYS_fork);
-	if (pid == 0) {
-		syscall(SYS_print_str, "Ready to sleep!\n");
-		syscall(SYS_sleep, 30);
-		syscall(SYS_print_str, "Ready to exit!\n");
-		syscall(SYS_exit, 0);
-	} else {
-		syscall(SYS_wait, 0);
-		syscall(SYS_print_str, "Child exit!\n");
-	}
-	while(1);
-}
+// int main()
+// {
+// 	int pid = syscall(SYS_fork);
+// 	if (pid == 0) {
+// 		syscall(SYS_print_str, "Ready to sleep!\n");
+// 		syscall(SYS_sleep, 30);
+// 		syscall(SYS_print_str, "Ready to exit!\n");
+// 		syscall(SYS_exit, 0);
+// 	} else {
+// 		syscall(SYS_wait, 0);
+// 		syscall(SYS_print_str, "Child exit!\n");
+// 	}
+// 	while(1);
+// }
 
 
 
