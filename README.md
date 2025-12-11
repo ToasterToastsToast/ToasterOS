@@ -71,8 +71,10 @@ ECNU Operating System 2025 Fall Final Project
 同步通过 `proc_sleep` 与 `proc_wakeup` 实现。进程因资源不可用而睡眠时，内核在持有进程锁的前提下将其状态设为 `SLEEPING`，释放资源锁并通过 `proc_sched` 切出 CPU。事件到来时，`proc_wakeup` 将等待指定通道的进程重新置为 `RUNNABLE`。这种原子化的状态转换避免了丢失唤醒竞态。睡眠锁（Sleep Lock）在此基础上构建：内部通过自旋锁保护自身状态，而在锁已被占用时使用 `proc_sleep` 睡眠等待，从而避免长期自旋导致的无效 CPU 消耗，适用于文件系统等需要长期持有锁的场景。
 
 ## 测试
-![Alt text](image.png)
-
+![Alt text](lab-manual/image.png)
+![Alt text](lab-manual/image-1.png)
+![Alt text](lab-manual/image-2.png)上下文别的输出没注释掉
+![Alt text](lab-manual/image-3.png)
 ## 0xff. references
 - [labs assignments](https://gitee.com/xu-ke-123/ecnu-oslab-2025-task)
 - [riscv简单常用汇编指令xv6](https://blog.csdn.net/surfaceyan/article/details/135030477)

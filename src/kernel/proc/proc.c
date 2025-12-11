@@ -469,7 +469,7 @@ void proc_scheduler() {
             if(p->state == RUNNABLE) {
                 p->state = RUNNING;
                 c->proc = p;
-                
+                // printf("proc %d  is running...\n", p->pid); task-2用 勿删
                 // 切换到进程的内核上下文 (会跳转到 proc_return -> trap_user_return -> 用户态)
                 swtch(&c->ctx, &p->ctx);
                 
