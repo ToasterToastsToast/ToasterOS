@@ -33,8 +33,8 @@ xx          @@@@       @@@@        xxxx              xxx    x xx       xxxx  xxx
 ECNU Operating System 2025 Fall Final Project 
 
 Contributors: 
-- [ToasterToasterToast](https://github.com/ToasterToastsToast) - 主要完成串口中断的实现，以及一些串口中断和时钟中断的测试代码
-- [syqwq](https://github.com/syqwq-OMG) - 主要完成时钟中断，以及内核态trap处理的核心逻辑
+- [ToasterToasterToast](https://github.com/ToasterToastsToast) - 代码审核（我去住院了QAQ）
+- [syqwq](https://github.com/syqwq-OMG) - 主要代码实现和readme撰写
 
 --- 
 
