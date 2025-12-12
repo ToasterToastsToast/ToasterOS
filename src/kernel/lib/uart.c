@@ -1,5 +1,5 @@
 /* low-level driver routines for 16550a UART. */
-
+void uart_putc_sync_ext(int c);
 #include "mod.h"
 
 #define BACKSPACE 0x100
