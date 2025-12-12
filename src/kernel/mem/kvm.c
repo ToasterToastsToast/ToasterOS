@@ -9,7 +9,7 @@ static pgtbl_t kernel_pgtbl;
 extern char KERNEL_DATA[];
 extern char ALLOC_BEGIN[];
 extern char ALLOC_END[];
-extern char trampoline[]; // !! <-- 声明 trampoline 符号
+extern char trampoline[]; 
 
 #define PLIC_SIZE 0x400000 // QEMU virt machine standard PLIC size
 #define CLINT_SIZE 0x10000
@@ -191,7 +191,7 @@ void kvm_init() {
     // 权限: 读 + 执行 (R + X)
     // vm_mappages(kernel_pgtbl, (uint64)trampoline, (uint64)trampoline,
                 // PGSIZE, PTE_R | PTE_X);
-    // 【【添加下面这行】】
+
     // 映射 TRAMPOLINE 高虚拟地址
     vm_mappages(kernel_pgtbl, TRAMPOLINE, (uint64)trampoline,
                 PGSIZE, PTE_R | PTE_X);
@@ -208,7 +208,6 @@ void kvm_init() {
     vm_mappages(kernel_pgtbl, KSTACK_VA(0), (uint64)kstack_pa,
                 PGSIZE, PTE_R | PTE_W);
 
-    // --- 【【LAB-4 结束】】 ---
 
     printf("kernel page table created successfully.\n");
 }

@@ -1,5 +1,5 @@
-#include "../proc/mod.h"         // 需要 myproc()
-#include "../../user/syscall_num.h" // 需要 SYS_helloworld
+#include "../proc/mod.h"        
+#include "../../user/syscall_num.h" 
 #include "mod.h"
 
 // in trampoline.S
@@ -33,7 +33,6 @@ void trap_user_handler() {
     // 3. 判断 trap 类型 (中断 还是 异常)
     if (scause & 0x8000000000000000ul) {
         // --- 中断 ---
-        // lab-4.md 要求测试中断是否正常工作
         int trap_id = scause & 0xf;
         switch (trap_id) {
         case 1: // S-mode software interrupt
@@ -50,7 +49,6 @@ void trap_user_handler() {
             panic("trap_user_handler: interrupt");
         }
     } else {
-        // --- 异常 ---
         int trap_id = scause & 0xf;
         switch (trap_id) {
         case 8: // Environment call from U-mode (系统调用)
@@ -66,8 +64,6 @@ void trap_user_handler() {
                 printf("trap_user_handler: unknown syscall num %d\n", sys_num);
             }
 
-            // !!重要!!: ecall 指令是异常, 但返回时 PC 必须 +4,
-            // 否则会无限循环执行 ecall
             p->tf->user_to_kern_epc += 4;
             break;
 
@@ -87,7 +83,7 @@ void trap_user_handler() {
 // 调用user_return()
 // 内核态返回用户态
 void trap_user_return() {
-    intr_off(); // 【【添加此行以关闭中断】】
+    intr_off(); 
     proc_t *p = myproc();
 
     // 1. 再次设置 S-mode 陷阱入口为 user_vector
@@ -134,6 +130,5 @@ void trap_user_return() {
     //    此函数会切换页表, 恢复所有寄存器, 并执行 sret
     user_return_func(TRAPFRAME, user_pgtbl_satp);
 
-    // user_return 永远不会返回
     panic("trap_user_return: failed to return to user");
 }

@@ -5,16 +5,12 @@
 #define initcode target_user_initcode
 #define initcode_len target_user_initcode_len
 
-// in trampoline.S
 extern char trampoline[];
 
-// in swtch.S
 extern void swtch(context_t *old, context_t *new);
 
-// in trap/trap_user.c
 extern void trap_user_return();
 
-// 第一个用户进程
 static proc_t proczero;
 
 // 获得一个初始化过的用户页表
@@ -138,6 +134,5 @@ void proc_make_first()
     // 切换到 proczero 的内核上下文 (proczero.ctx)
     swtch(&mycpu()->ctx, &proczero.ctx);
 
-    // swtch 永远不会返回到这里
     panic("proc_make_first: swtch returned?!");
 }
