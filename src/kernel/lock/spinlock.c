@@ -59,7 +59,8 @@ void spinlock_acquire(spinlock_t *lk) {
 // 释放自旋锁
 void spinlock_release(spinlock_t *lk) {
     if (!spinlock_holding(lk)) {
-        panic("kernel/lock/spinlock.c spinlock_release()");
+        printf("%s\n", lk->name);
+        panic("kernel/lock/spinlock.c spinlock_release(): release when not holding");
     }
     lk->cpuid = -1;
     __sync_synchronize();

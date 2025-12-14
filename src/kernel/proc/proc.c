@@ -46,8 +46,12 @@ static int alloc_pid()
 
 /* 释放进程锁 + trap_user_return */
 static void proc_return() {
-    spinlock_release(&myproc()->lk); // 释放调度器转交过来的锁
-    trap_user_return();              // 返回用户态
+    spinlock_release(&myproc()->lk); // 先释放调度器转交过来的锁
+
+    extern void fs_init();
+    fs_init(); // 初始化文件系统（会触发磁盘I/O）
+
+    trap_user_return();
 }
 
 /* 进程模块初始化 */
