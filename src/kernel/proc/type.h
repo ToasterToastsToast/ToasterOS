@@ -1,5 +1,7 @@
 #pragma once
 #include "../arch/type.h"
+#include "../mem/type.h"  // 导入 PGSIZE 和 VA_MAX
+#include "../lock/type.h" // 导入 spinlock_t
 
 // 同优先级的上下文
 typedef struct context
