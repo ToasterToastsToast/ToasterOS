@@ -41,37 +41,47 @@ uint64 len_fit_pagesize(uint64 l) {
 // 若设置alloc=true 则在PTE无效时尝试申请一个物理页
 // 成功返回PTE, 失败返回NULL
 // 提示：使用 VA_TO_VPN + PTE_TO_PA + PA_TO_PTE
-pte_t *vm_getpte(pgtbl_t pgtbl, uint64 va, bool alloc) {
-    for (int level = 2; level > 0; level--) {
+// 修改后的地址翻译函数
+pte_t *vm_getpte(pgtbl_t pgtbl, uint64 va, bool alloc)
+{
+    // 【补充逻辑】如果传入 pgtbl 为空，则默认使用内核页表
+    // 注意：确保 kernel_pgtbl 已经在当前作用域可见（通常是全局变量）
+    if (pgtbl == NULL)
+    {
+        pgtbl = kernel_pgtbl;
+    }
+
+    for (int level = 2; level > 0; level--)
+    {
         uint64 vpn = VA_TO_VPN(va, level);
         pte_t *pte = &pgtbl[vpn];
-        if (*pte & PTE_V) {
+
+        if (*pte & PTE_V)
+        {
+            // 页表项有效，进入下一级
             pgtbl = (pgtbl_t)PTE_TO_PA(*pte);
-        } else {
-            if (!alloc) {
-                // 不允许分配，查找失败，返回NULL
+        }
+        else
+        {
+            // 页表项无效，根据 alloc 决定是否分配
+            if (!alloc)
                 return NULL;
-            }
 
-            // 允许分配，则调用物理内存分配器申请一个新的、干净的4KB物理页
-            pgtbl = (pgtbl_t)pmem_alloc(true); // 页表属于内核，所以用true
-            if (pgtbl == NULL) {
-                // 物理内存耗尽，分配失败
+            // 分配新的物理页作为下一级页表
+            pgtbl = (pgtbl_t)pmem_alloc(true);
+            if (pgtbl == NULL)
                 return NULL;
-            }
 
-            // 将新分配的页清零，因为它将作为一张新的页表使用
             memset(pgtbl, 0, PGSIZE);
-
+            // 填充当前页表项，并打上有效标记 (PTE_V)
             *pte = PA_TO_PTE((uint64)pgtbl) | PTE_V;
         }
     }
-    // 经过两次循环，现在的 `pgtbl` 已经是最低级（L0）页表的地址了。
-    // 我们只需要用 VPN[0] 作为索引，就能找到最终的PTE。
+
+    // 经过 2 级跳转，现在的 pgtbl 指向 L0 页表
     uint64 offset = VA_TO_VPN(va, 0);
     return &pgtbl[offset];
 }
-
 // 在pgtbl中建立 [va, va + len) -> [pa, pa + len) 的映射
 // 本质是找到va在页表对应位置的pte并修改它
 // 检查: va pa 应当是 page-aligned, len(字节数) > 0, va + len <= VA_MAX
@@ -212,6 +222,7 @@ void kvm_init() {
     vm_mappages(kernel_pgtbl, KSTACK_VA(0), (uint64)kstack_pa,
                 PGSIZE, PTE_R | PTE_W);
 
+    vm_mappages(kernel_pgtbl, VIRTIO_BASE, VIRTIO_BASE, PGSIZE, PTE_R | PTE_W);
     // --- 【【LAB-4 结束】】 ---
 
     // 为所有进程分配和映射内核栈

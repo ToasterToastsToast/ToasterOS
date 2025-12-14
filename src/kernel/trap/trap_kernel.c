@@ -131,7 +131,12 @@ void external_interrupt_handler() {
     // 2. 检查是否是串口中断 (UART_IRQ 通常是 10)
     if (irq == UART_IRQ) {
         uart_intr(); //
-    } else if (irq) {
+    }
+    else if (irq == VIRTIO_IRQ)//磁盘中断
+    {
+        virtio_disk_intr(); // 调用 virtio.c 提供的处理函数
+    }
+    else if (irq) {
         // 其他未知的外设中断
         printf("\nunexpected external interrupt irq=%d\n", irq);
     }
