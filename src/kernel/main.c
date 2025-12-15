@@ -27,6 +27,7 @@ int main()
         trap_kernel_init();
         trap_kernel_inithart();
 
+
         __sync_synchronize();
         started = 1;
     }
