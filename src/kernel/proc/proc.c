@@ -397,26 +397,31 @@ int proc_wait(uint64 addr) {
 void proc_sleep(void *chan, spinlock_t *lk) {
     proc_t *p = myproc();
     
-    // 获取进程锁
-    if(p->lk.locked == 0) // 只有未持有时才获取（防止递归）
-        spinlock_acquire(&p->lk);
-    
-    // 释放传入的锁 (wait_lk 或 timer_lk)
-    spinlock_release(lk);
+    // 逻辑修正：
+    // 必须持有 p->lk 才能修改 p->state 并调用 sched。
+    // 如果传入的锁 lk 不是 p->lk，说明我们还没持有 p->lk，需要获取。
+    // 如果传入的锁就是 p->lk，说明我们已经持有了，不需要再次获取。
+    if(lk != &p->lk) {
+        spinlock_acquire(&p->lk); 
+        spinlock_release(lk);
+    }
 
     // 修改状态
     p->sleep_space = chan;
     p->state = SLEEPING;
 
-    // 调度
+    // 调度 (proc_sched 要求调用者持有 p->lk)
     proc_sched();
 
     // 醒来后清理
     p->sleep_space = NULL;
-    spinlock_release(&p->lk);
-    
-    // 重新获取传入的锁
-    spinlock_acquire(lk);
+
+    // 恢复锁的状态
+    // 如果之前释放了 lk 并获取了 p->lk，现在要反过来
+    if(lk != &p->lk) {
+        spinlock_release(&p->lk);
+        spinlock_acquire(lk);
+    }
 }
 
 /*
