@@ -56,3 +56,12 @@ void *memcpy(void *dst, const void *src, uint32 n)
     }
     return dst;
 }
+
+// 返回字符串长度
+int strlen(const char *str)
+{
+  int i = 0;
+  for (i = 0; str[i] != '\0'; i++)
+    ;
+  return i;
+}
