@@ -20,7 +20,7 @@ extern void swtch(context_t *old, context_t *new);
 
 // in trap/trap_user.c
 extern void trap_user_return();
-
+extern void kernel_vector();
 /* ------------本地变量----------- */
 
 // 进程结构体数组 + 第一个用户进程的指针
@@ -45,10 +45,13 @@ static int alloc_pid()
 
 
 /* 释放进程锁 + trap_user_return */
-static void proc_return() {
+static void proc_return()
+{
+    //w_stvec((uint64)kernel_vector);
+
     spinlock_release(&myproc()->lk); // 先释放调度器转交过来的锁
 
-    extern void fs_init();
+    
     fs_init(); // 初始化文件系统（会触发磁盘I/O）
 
     trap_user_return();

@@ -73,10 +73,15 @@ void trap_kernel_inithart()
 void trap_kernel_handler() {
     uint64 sepc = r_sepc();       // 记录了发生异常时的PC值
     uint64 sstatus = r_sstatus(); // 与特权模式和中断相关的状态信息
-    uint64 scause = r_scause();   // 引发trap的原因
+    uint64 scause = r_scause();   // 引发trap的原因m
     uint64 stval = r_stval(); // 发生trap时保存的附加信息 (不同trap类型不一样)
 
     // 确认trap来自S-mode且此时trap处于关闭状态
+    if (!(sstatus & SSTATUS_SPP))
+    {
+        printf("Panic Debug: scause=%p, sepc=%p, stval=%p, hartid=%d\n", scause, sepc, stval, r_tp());
+        // 如果 sepc 在 0x80000000 以上，说明是在内核代码里崩的
+    }
     assert(sstatus & SSTATUS_SPP, "trap_kernel_handler: not from s-mode");
     assert(intr_get() == 0, "trap_kernel_handler: interreput enabled");
     int trap_id = scause & 0xf;
