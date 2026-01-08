@@ -70,17 +70,40 @@ void trap_kernel_inithart()
 }
 // 在kernel_vector()里面调用
 // 内核态trap处理的核心逻辑
+// 增加一些外部声明以便打印更多信息
+extern uint64 r_sp();
+extern uint64 r_ra();
 void trap_kernel_handler() {
     uint64 sepc = r_sepc();       // 记录了发生异常时的PC值
     uint64 sstatus = r_sstatus(); // 与特权模式和中断相关的状态信息
     uint64 scause = r_scause();   // 引发trap的原因m
     uint64 stval = r_stval(); // 发生trap时保存的附加信息 (不同trap类型不一样)
-
+    uint64 sp = r_sp();       // 获取当前的栈指针
+    uint64 ra = r_ra();       // 获取当前的返回地址
     // 确认trap来自S-mode且此时trap处于关闭状态
+    // 在断言前添加调试信息
     if (!(sstatus & SSTATUS_SPP))
     {
-        printf("Panic Debug: scause=%p, sepc=%p, stval=%p, hartid=%d\n", scause, sepc, stval, r_tp());
-        // 如果 sepc 在 0x80000000 以上，说明是在内核代码里崩的
+        printf("\n=== TRAP STATE DEBUG ===\n");
+        printf("sepc = %p\n", sepc);
+        printf("sstatus = %p (SPP=%d)\n", sstatus, (sstatus & SSTATUS_SPP) ? 1 : 0);
+        printf("scause = %p\n", scause);
+        printf("stval = %p\n", stval);
+        printf("sp = %p\n", sp);
+        printf("ra = %p\n", ra);
+        printf("stvec = %p\n", r_stvec());
+
+        proc_t *p = myproc();
+        if (p)
+        {
+            printf("myproc = %p, state = %d\n", p, p->state);
+            printf("kstack = %p\n", p->kstack);
+        }
+        else
+        {
+            printf("myproc = NULL\n");
+        }
+        printf("========================\n");
     }
     assert(sstatus & SSTATUS_SPP, "trap_kernel_handler: not from s-mode");
     assert(intr_get() == 0, "trap_kernel_handler: interreput enabled");
@@ -158,15 +181,15 @@ void timer_interrupt_handler() {
     if (mycpuid() == 0)
         timer_update();
 
-    // 【【添加打印语句以进行测试】】
-    // 你可以每隔一段时间打印一次，例如：
-    if (mycpuid() == 0) {
-        // 从 timer.c 中我们知道 timer_get_ticks() 是受锁保护的
-        uint64 ticks = timer_get_ticks();
-        // if(ticks % 20 == 0) { // 每20次tick打印一次
-        //      printf("[U] tick=%d\n", ticks);
-        // }
-    }
+    // // 【【添加打印语句以进行测试】】
+    // // 你可以每隔一段时间打印一次，例如：
+    // if (mycpuid() == 0) {
+    //     // 从 timer.c 中我们知道 timer_get_ticks() 是受锁保护的
+    //     uint64 ticks = timer_get_ticks();
+    //     // if(ticks % 20 == 0) { // 每20次tick打印一次
+    //     //      printf("[U] tick=%d\n", ticks);
+    //     // }
+    // }
     
     // 清除 SSIP bit
     w_sip(r_sip() & ~2);
