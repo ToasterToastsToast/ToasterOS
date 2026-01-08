@@ -354,65 +354,47 @@ void uvm_munmap(uint64 begin, uint32 npages)
 }
 
 /*------------------part-3: 用户空间heap和stack管理相关------------------*/
-
-// 用户堆空间增加, 返回新的堆顶地址 (注意栈顶最大值限制)
-uint64 uvm_heap_grow(pgtbl_t pgtbl, uint64 cur_heap_top, uint32 len)
+// 用户堆空间增加, 返回新的堆顶地址
+uint64 uvm_heap_grow(pgtbl_t pgtbl, uint64 cur_heap_top, uint32 len, int flag)
 {
-    // 计算新的堆顶地址 (虚拟地址)
+    if (len == 0)
+        return cur_heap_top;
+
     uint64 new_heap_top = cur_heap_top + len;
 
-    // 1. 边界检查：新堆顶是否越过 MMAP_BEGIN (堆的上限)
+    // 边界检查：堆不应越过 MMAP_BEGIN
     if (new_heap_top > MMAP_BEGIN)
     {
-        panic("uvm_heap_grow: new heap top exceeds MMAP_BEGIN\n");
-        return 0; // 失败返回 0
+        return (uint64)-1;
     }
 
-    // 2. 计算需要映射的虚拟地址范围
-    // 堆总是从 cur_heap_top 开始向上增长。
-    // 但是页映射总是从页的起始地址开始。
-
-    // 起始虚拟地址：当前堆顶的页对齐地址
+    // 计算需要映射的页范围
     uint64 map_va_start = ALIGN_UP(cur_heap_top, PGSIZE);
-
-    // 如果 cur_heap_top 已经在页边界上，则 map_va_start 就是 cur_heap_top。
-    // 如果 cur_heap_top < map_va_start，说明 cur_heap_top 之前的空间已经在旧页中被映射。
-
-    // 终止虚拟地址：新堆顶的页对齐地址 (向上取整)
     uint64 map_va_end = ALIGN_UP(new_heap_top, PGSIZE);
 
-    // 如果 map_va_end <= map_va_start，说明没有新增页，无需操作
+    // 没有新增页，直接返回
     if (map_va_end <= map_va_start)
     {
-        return new_heap_top; // 堆顶增长但没有跨越页边界，直接返回新的堆顶
+        return new_heap_top;
     }
 
-    // 3. 计算需要分配的页数和总长度
-    uint64 map_len = map_va_end - map_va_start;
-    uint32 num_pages = (uint32)(map_len / PGSIZE);
-
-    // 4. 循环分配物理页面并映射
-    for (uint32 i = 0; i < num_pages; i++)
+    // 分配并映射新页
+    int perm = flag | PTE_U;
+    for (uint64 va = map_va_start; va < map_va_end; va += PGSIZE)
     {
-        // 4.1 申请一页物理内存 (is_kernel = false, 用户页)
-
-        uint64 pa = (uint64)pmem_alloc(false); // ✅ 新: 移除 npage 参数
-
-        if (pa == 0)
+        void *pa = pmem_alloc(false);
+        if (pa == NULL)
         {
-            printf("uvm_heap_grow: pmem_alloc failed for heap\n");
-            return 0;
+            // 回滚已分配部分
+            for (uint64 unmap = map_va_start; unmap < va; unmap += PGSIZE)
+            {
+                vm_unmappages(pgtbl, unmap, PGSIZE, true);
+            }
+            return (uint64)-1;
         }
-        // 4.2 计算当前要映射的虚拟地址
-        uint64 current_va = map_va_start + i * PGSIZE;
-
-        // 4.3 建立映射：用户可读写 (PTE_U | PTE_R | PTE_W)
-        // 假设 PTE_U, PTE_R, PTE_W 等权限位在 type.h 中有定义
-        // 这里的 len 是 PGSIZE (1页)
-        vm_mappages(pgtbl, current_va, pa, PGSIZE, PTE_U | PTE_R | PTE_W);
+        vm_mappages(pgtbl, va, (uint64)pa, PGSIZE, perm);
     }
 
-    // 5. 成功返回新的堆顶地址
     return new_heap_top;
 }
 // 用户堆空间减少, 返回新的堆顶地址
