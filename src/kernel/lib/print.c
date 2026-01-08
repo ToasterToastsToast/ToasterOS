@@ -1,6 +1,6 @@
 /* 标准输出和报错机制 */
 #include "mod.h"
-#include <stdarg.h>
+
 
 static char digits[] = "0123456789abcdef";
 

@@ -12,7 +12,6 @@
 static int kernel_int_array[ARRAY_LEN_IN_INTS];
 static char kernel_str_buf[MAX_STRING_LEN];
 
-
 /*
     用户堆空间伸缩
     uint64 new_heap_top (如果是0, 代表查询当前堆顶位置)
@@ -28,55 +27,48 @@ uint64 sys_brk()
     uint64 result_top = 0;
     const char *event_type = "no_change";
 
-    // 2. 查询当前堆顶
+    // 2. 查询当前堆顶 (通常用户程序第一次调用 brk(0) 来获取起始地址)
     if (new_heap_top == 0)
     {
-        // 用户请求查询当前堆顶位置
         result_top = old_heap_top;
         event_type = "look";
     }
-
     else if (new_heap_top > old_heap_top)
     {
-        // 空间增加: old_heap_top < new_heap_top
+        // 空间增加
         uint32 len = new_heap_top - old_heap_top;
-        result_top = uvm_heap_grow(p->pgtbl, old_heap_top, len);
-        event_type = "grow"; // 标记事件类型
+        // 修正：传入 pgtbl, 当前堆顶, 长度, 以及页面权限 (用户级+读+写)
+        result_top = uvm_heap_grow(p->pgtbl, old_heap_top, len, PTE_R | PTE_W);
+        event_type = "grow";
     }
     else if (new_heap_top < old_heap_top)
     {
-        // 空间减少: old_heap_top > new_heap_top
+        // 空间减少
         uint32 len = old_heap_top - new_heap_top;
+        // 修正：确保参数与定义 (pgtbl, cur_heap_top, len) 一致
         result_top = uvm_heap_ungrow(p->pgtbl, old_heap_top, len);
-        event_type = "ungrow"; // 标记事件类型
+        event_type = "ungrow";
     }
     else
     {
-        // 空间不变: old_heap_top == new_heap_top
+        // 空间不变
         result_top = old_heap_top;
-        event_type = "no_change"; // 标记事件类型
+        event_type = "no_change";
     }
 
-    // 3. 处理结果和调试输出
-    if (result_top > 0)
+    // 3. 处理结果
+    if (result_top != (uint64)-1 && result_top != 0)
     {
-        // 成功，更新进程堆顶
         p->heap_top = result_top;
-        // 打印成功事件：ret_heap_top 是 64 位地址，使用 %x
         printf("%s event: ret_heap_top = %x\n", event_type, result_top);
         return result_top;
     }
     else
     {
-        // 失败 (result_top == 0 是失败的标志)
-        // 打印失败事件：Requested 和 Old 都是 64 位地址，使用 %x
         printf("%s event: FAILED (Requested %x, Old %x)\n", event_type, new_heap_top, old_heap_top);
-
-        // 失败返回 -1 (约定)
         return (uint64)-1;
     }
 }
-
 /*
     增加一段内存映射
     uint64 start 起始地址

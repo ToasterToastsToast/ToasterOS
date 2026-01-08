@@ -9,7 +9,7 @@
 #define initcode_len target_user_initcode_len
 // initcode entry 偏移（相对于页面基址 PGSIZE）
 #define INITCODE_ENTRY_OFFSET 0x2c
-
+#define USTACK (TRAPFRAME - PGSIZE)
 // in trampoline.S
 extern char trampoline[];
 

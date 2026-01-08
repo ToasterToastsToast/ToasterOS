@@ -245,9 +245,6 @@ uint32 file_get_stat(file_t *file, uint64 user_dst)
        return 0;
 }
 
-// fs_init may touch disk and sleep (virtio/buffer), so it must NOT hold a spinlock.
-// Use a simple state machine for one-time initialization.
-static volatile int fs_state = 0; // 0=uninit, 1=initializing, 2=ready
 
 #define FS_TEST_ID 0
 /* 基于superblock输出磁盘布局信息 (for debug) */

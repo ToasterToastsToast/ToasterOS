@@ -55,18 +55,6 @@ void virtio_disk_init()
     memset(disk.pages, 0, sizeof(disk.pages));
     *R(VIRTIO_MMIO_QUEUE_PFN) = ((uint64)disk.pages) >> 12;
 
-    // desc = pages -- num * VRingDesc
-    // avail = pages + 0x40 -- 2 * uint16, then num * uint16
-    // used = pages + 4096 -- 2 * uint16, then num * vRingUsedElem
-
-    // disk.pages (共 2 页，连续 8192 字节)
-    // │
-    // ├─ Page 0 (0 ~ 4095)
-    // │   ├─ desc[NUM]   (NUM 个 VRingDesc，描述 I/O 缓冲区)
-    // │   └─ avail ring  (驱动提交给设备的请求队列)
-    // │
-    // └─ Page 1 (4096 ~ 8191)
-    //     └─ used ring   (设备完成请求后填入的队列)
 
     disk.desc = (vring_desc_t *)disk.pages;
     disk.avail = (uint16 *)(((char *)disk.desc) + VIRTIO_NUM * sizeof(vring_desc_t));

@@ -2,8 +2,8 @@
 
 int main()
 {
-	char path[] = "./test_5";
-	char arg0[] = "test_5";
+	char path[] = "./test_1";
+	char arg0[] = "test_1";
 	char *argv[] = {arg0, 0};
 
 	char str_1[] = "initcode: fork fail!\n";

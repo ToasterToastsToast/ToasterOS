@@ -36,6 +36,40 @@ uint32 dentry_search(inode_t *ip, char *name)
 	buffer_put(buf);
 	return INVALID_INODE_NUM;
 }
+/*
+	在目录ip中查找是否存在序号为inode_num的目录项
+	如果存在则将它的名字拷贝到name, 返回name_len
+	如果不存在则返回-1
+	注意: 调用者需要持有ip->slk
+*/
+uint32 dentry_search_2(inode_t *ip, uint32 inode_num, char *name)
+{
+	assert(sleeplock_holding(&ip->slk), "dentry_search_2: slk!");
+	assert(ip->disk_info.type == INODE_TYPE_DIR, "dentry_search_2: not dir!");
+
+	if (ip->disk_info.index[0] == 0)
+		return (uint32)-1;
+
+	buffer_t *buf = buffer_get(ip->disk_info.index[0]);
+	dentry_t *de;
+	for (de = (dentry_t *)(buf->data); de < (dentry_t *)(buf->data + BLOCK_SIZE); de++)
+	{
+		if (de->name[0] == 0)
+			continue;
+		if (de->inode_num == inode_num)
+		{
+			int n = strlen(de->name);
+			if (n >= MAXLEN_FILENAME)
+				n = MAXLEN_FILENAME - 1;
+			memmove(name, de->name, n);
+			name[n] = 0;
+			buffer_put(buf);
+			return (uint32)n;
+		}
+	}
+	buffer_put(buf);
+	return (uint32)-1;
+}
 
 /*
 	在目录ip中寻找空闲槽位, 插入新的dentry
@@ -129,6 +163,45 @@ uint32 dentry_delete(inode_t *ip, char *name)
 
 	buffer_put(buf);
 	return INVALID_INODE_NUM;
+}
+/*
+	向缓冲区[dst, dst + len)中填充有效的dentry
+	返回成功填充的数据量(字节)
+	注意: 调用者需持有ip->slk
+*/
+uint32 dentry_transmit(inode_t *ip, uint64 dst, uint32 len, bool is_user_dst)
+{
+	assert(sleeplock_holding(&ip->slk), "dentry_transmit: slk!");
+	assert(ip->disk_info.type == INODE_TYPE_DIR, "dentry_transmit: not dir!");
+
+	if (ip->disk_info.index[0] == 0)
+		return 0;
+
+	buffer_t *buf = buffer_get(ip->disk_info.index[0]);
+	dentry_t *de;
+	uint32 write_len = 0;
+	proc_t *p = myproc();
+
+	for (de = (dentry_t *)(buf->data); de < (dentry_t *)(buf->data + BLOCK_SIZE); de++)
+	{
+		if (de->name[0] == 0)
+			continue;
+		if (write_len + sizeof(dentry_t) > len)
+			break;
+		if (is_user_dst)
+		{
+			uvm_copyout(p->pgtbl, dst, (uint64)de, sizeof(dentry_t));
+		}
+		else
+		{
+			memmove((void *)dst, de, sizeof(dentry_t));
+		}
+		dst += sizeof(dentry_t);
+		write_len += sizeof(dentry_t);
+	}
+
+	buffer_put(buf);
+	return write_len;
 }
 
 /* 输出目录中所有有效目录项的信息 (for debug) */
@@ -316,8 +389,7 @@ uint32 inode_to_path(inode_t *ip, char *path, uint32 len)
 		char name_buf[MAXLEN_FILENAME];
 		
 		inode_lock(parent);
-		// 注意: dentry.c 之前缺少 dentry_search_2，建议参考 dentry(2).c 补齐该辅助函数
-		// 这里假设逻辑为在父目录中通过 inode_num 反查文件名
+
 		uint32 name_len = dentry_search_2(parent, cur->inode_num, name_buf);
 		inode_unlock(parent);
 
