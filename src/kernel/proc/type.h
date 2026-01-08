@@ -1,19 +1,6 @@
 #pragma once
-#include "../arch/type.h"
-#include "../mem/type.h"  // 导入 PGSIZE 和 VA_MAX
-#include "../lock/type.h" // 导入 spinlock_t
+#include "../lock/type.h"
 
-// VA_MAX (1ul << 38) 在 mem/type.h 中定义
-#define TRAMPOLINE (VA_MAX - PGSIZE)
-// trapframe 紧挨着 trampoline
-#define TRAPFRAME (TRAMPOLINE - PGSIZE)
-// user stack 紧挨着 trapframe
-#define USTACK (TRAPFRAME - PGSIZE)
-
-// 定义内核栈的虚拟地址
-// 我们将 pid=0 的内核栈放在 TRAPFRAME 下方 (在内核看来)
-// 注意：这个 VA 必须与 kvm_init 中映射的 VA 一致
-#define KSTACK_VA(pid) (TRAPFRAME - (pid + 2) * PGSIZE) // 举例：放在 TRAPFRAME 下方
 // 同优先级的上下文
 typedef struct context
 {
@@ -81,6 +68,8 @@ typedef struct trapframe
 // 外部结构体
 typedef uint64 *pgtbl_t;
 typedef struct mmap_region mmap_region_t;
+typedef struct inode inode_t;
+typedef struct file file_t;
 
 /*
     可能的进程状态转换：
@@ -101,11 +90,16 @@ enum proc_state
     ZOMBIE,   // 濒临死亡
 };
 
+// 单个进程最多打开N_OPEN_FILE_PER_PROC个文件
+#define N_OPEN_FILE_PER_PROC 10
+
+#define PROC_NAME_LEN 16
+
 // 进程
 typedef struct proc
 {
-    int pid;       // 标识符
-    char name[16]; // 进程名称
+    int pid;                  // 标识符
+    char name[PROC_NAME_LEN]; // 进程名称
 
     spinlock_t lk;         // 自旋锁, 保护下面4个字段
     enum proc_state state; // 进程状态
@@ -121,7 +115,68 @@ typedef struct proc
 
     uint64 kstack; // 内核栈的虚拟地址
     context_t ctx; // 内核态进程上下文
+
+    inode_t *cwd;                            // 工作目录
+    file_t *open_file[N_OPEN_FILE_PER_PROC]; // 打开文件表
+
 } proc_t;
 
 // 系统中最多同时存在N_PROC个进程
 #define N_PROC 32
+
+// 关于elf文件的解析
+
+/*
+    ELF文件的构成:
+    elf header            全局元数据
+    program header table  描述各个segments
+    sections(segments)    从编译和执行两个角度
+    section header table  描述各个sections
+*/
+
+#define ELF_MAGIC 0x464C457FU // "\x7FELF" in little endian
+
+typedef struct elf_header
+{
+    uint32 magic;       // 应该是ELF_MAGIC
+    uint8 elf[12];      // 一些信息
+    uint16 type;        // ELF文件类型(如可执行文件、共享库等)
+    uint16 machine;     // 机器的指令集架构(如x86、risc-v等)
+    uint32 version;     // ELF版本号
+    uint64 entry;       // 程序入口地址
+    uint64 ph_off;      // program header table偏移量
+    uint64 sh_off;      // section header table偏移量
+    uint32 flags;       // 处理器特定标志
+    uint16 eh_size;     // elf_header本身的大小
+    uint16 ph_ent_size; // program header table里每个entry的大小
+    uint16 ph_ent_num;  // program header table里的entry数量
+    uint16 sh_ent_size; // section header table里每个entry的大小
+    uint16 sh_ent_num;  // section header table里的entry数量
+    uint16 sh_str_ndx;  // section header table中包含节字符串表索引的entry的索引
+} elf_header_t;
+
+// program header
+typedef struct program_header
+{
+    uint32 type;
+    uint32 flags;
+    uint64 off;
+    uint64 va;
+    uint64 pa;
+    uint64 file_size;
+    uint64 mem_size;
+    uint64 align;
+} program_header_t;
+
+// program_header->type = load 时载入内存
+#define ELF_PROG_LOAD 1
+
+// program_header->flags取值
+#define ELF_PROG_FLAG_EXEC 1
+#define ELF_PROG_FLAG_WRITE 2
+#define ELF_PROG_FLAG_READ 4
+
+// 最大参数量
+#define ELF_MAXARGS 32
+// 单个参数长度限制
+#define ELF_MAXARG_LEN (PGSIZE / ELF_MAXARGS)

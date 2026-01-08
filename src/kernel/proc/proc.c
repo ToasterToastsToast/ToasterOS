@@ -43,71 +43,95 @@ static int alloc_pid()
     return tmp;
 }
 
-
 /* 释放进程锁 + trap_user_return */
 static void proc_return()
 {
-    //w_stvec((uint64)kernel_vector);
+    // w_stvec((uint64)kernel_vector);
 
     spinlock_release(&myproc()->lk); // 先释放调度器转交过来的锁
+    fs_init();                       // 初始化文件系统（会触发磁盘I/O）
 
-    
-    fs_init(); // 初始化文件系统（会触发磁盘I/O）
+    // 为 proczero 初始化文件系统资源
+    proc_t *p = myproc();
+    if (p == proczero && p->cwd == NULL)
+    {
+        p->cwd = inode_get(ROOT_INODE);
+        for (int i = 0; i < N_OPEN_FILE_PER_PROC; i++)
+            p->open_file[i] = NULL;
+        p->open_file[0] = file_open("/dev/stdin", FILE_OPEN_READ);
+        p->open_file[1] = file_open("/dev/stdout", FILE_OPEN_WRITE);
+        p->open_file[2] = file_open("/dev/stderr", FILE_OPEN_WRITE);
+    }
 
     trap_user_return();
 }
 
 /* 进程模块初始化 */
-void proc_init() {
+void proc_init()
+{
     spinlock_init(&pid_lk, "pid");
     spinlock_init(&wait_lk, "wait");
     global_pid = 1;
-    
-    for(int i = 0; i < N_PROC; i++) {
+
+    for (int i = 0; i < N_PROC; i++)
+    {
         spinlock_init(&proc_list[i].lk, "proc");
         proc_list[i].state = UNUSED;
         proc_list[i].kstack = KSTACK_VA(i); // 预先计算好内核栈地址
+        proc_list[i].cwd = NULL;
+        for (int j = 0; j < N_OPEN_FILE_PER_PROC; j++)
+            proc_list[i].open_file[j] = NULL;
     }
 }
 
-/* 
+/*
     申请一个UNUSED进程结构体(返回时带锁)
     并执行通用的初始化逻辑
 */
-proc_t *proc_alloc() {
+proc_t *proc_alloc()
+{
     proc_t *p = NULL;
 
     // 1. 寻找空闲槽位
-    for (int i = 0; i < N_PROC; i++) {
+    for (int i = 0; i < N_PROC; i++)
+    {
         spinlock_acquire(&proc_list[i].lk);
-        if (proc_list[i].state == UNUSED) {
+        if (proc_list[i].state == UNUSED)
+        {
             p = &proc_list[i];
             break;
         }
         spinlock_release(&proc_list[i].lk);
     }
-    if (p == NULL) return NULL;
+    if (p == NULL)
+        return NULL;
 
     // 2. 初始化基础信息
     p->pid = alloc_pid();
-    p->state = UNUSED; // 分配完成前保持 UNUSED
+    p->state = RUNNABLE; // 分配完成前保持 UNUSED
     p->parent = NULL;
     p->exit_code = 0;
     p->sleep_space = NULL;
     p->mmap = NULL;
     p->heap_top = 0;
     p->ustack_npage = 0;
+    p->cwd = NULL;
+    for (int i = 0; i < N_OPEN_FILE_PER_PROC; i++)
+        p->open_file[i] = NULL;
     memset(p->name, 0, sizeof(p->name));
 
     // 3. 分配 Trapframe
-    if ((p->tf = (trapframe_t *)pmem_alloc(true)) == NULL) {
+    if ((p->tf = (trapframe_t *)pmem_alloc(true)) == NULL)
+    {
+        p->state = UNUSED;
         spinlock_release(&p->lk);
         return NULL;
     }
     memset(p->tf, 0, PGSIZE);
 
     // 4. 初始化页表 (映射 trampoline 和 trapframe)
-    if ((p->pgtbl = proc_pgtbl_init((uint64)p->tf)) == NULL) {
+    if ((p->pgtbl = proc_pgtbl_init((uint64)p->tf)) == NULL)
+    {
         pmem_free((uint64)p->tf, true);
         p->tf = NULL;
         spinlock_release(&p->lk);
@@ -124,16 +148,34 @@ proc_t *proc_alloc() {
     return p; // 返回持有锁的进程指针
 }
 
-/* 
+/*
     回收一个进程结构体并释放它包含的资源
     tips: 调用者需要持有进程锁
 */
-void proc_free(proc_t *p) {
-    if (p->tf) pmem_free((uint64)p->tf, true);
+void proc_free(proc_t *p)
+{
+    if (p->tf)
+        pmem_free((uint64)p->tf, true);
     p->tf = NULL;
 
-    if (p->pgtbl) uvm_destroy_pgtbl(p->pgtbl);
+    if (p->pgtbl)
+        uvm_destroy_pgtbl(p->pgtbl);
     p->pgtbl = NULL;
+
+    // 释放文件资源
+    for (int i = 0; i < N_OPEN_FILE_PER_PROC; i++)
+    {
+        if (p->open_file[i] != NULL)
+        {
+            file_close(p->open_file[i]);
+            p->open_file[i] = NULL;
+        }
+    }
+    if (p->cwd != NULL)
+    {
+        inode_put(p->cwd);
+        p->cwd = NULL;
+    }
 
     p->pid = 0;
     p->parent = NULL;
@@ -141,7 +183,6 @@ void proc_free(proc_t *p) {
     p->state = UNUSED;
     spinlock_release(&p->lk);
 }
-
 
 // 获得一个初始化过的用户页表
 // 完成trapframe和trampoline的映射
@@ -151,7 +192,8 @@ pgtbl_t proc_pgtbl_init(uint64 trapframe)
 
     // 1. 分配一个物理页作为根页表 (用户资源)
     pgtbl = (pgtbl_t)pmem_alloc(false);
-    if (pgtbl == NULL) {
+    if (pgtbl == NULL)
+    {
         panic("proc_pgtbl_init: out of memory for pgtbl");
     }
     memset(pgtbl, 0, PGSIZE);
@@ -186,21 +228,25 @@ pgtbl_t proc_pgtbl_init(uint64 trapframe)
 
     注意: 用用户空间的地址映射需要标记 PTE_U
 */
-void proc_make_first() {
+void proc_make_first()
+{
     proc_t *p = proc_alloc();
-    if (!p) panic("proc_make_first failed");
+    if (!p)
+        panic("proc_make_first failed");
     proczero = p;
 
     // 映射用户栈
     extern void trap_user_handler();
     void *ustack_pa = pmem_alloc(false);
-    if(!ustack_pa) panic("proc_make_first ustack");
+    if (!ustack_pa)
+        panic("proc_make_first ustack");
     vm_mappages(p->pgtbl, USTACK, (uint64)ustack_pa, PGSIZE, PTE_R | PTE_W | PTE_U);
     p->ustack_npage = 1;
 
     // 映射代码段 (user base)
     void *code_pa = pmem_alloc(false);
-    if(!code_pa) panic("proc_make_first code");
+    if (!code_pa)
+        panic("proc_make_first code");
     memmove(code_pa, initcode, initcode_len);
     // 注意：initcode 从 0x0 (USER_BASE) 开始执行
     vm_mappages(p->pgtbl, USER_BASE, (uint64)code_pa, PGSIZE, PTE_R | PTE_W | PTE_X | PTE_U);
@@ -215,8 +261,9 @@ void proc_make_first() {
 
     // 命名并启动
     char *name = "proczero";
-    for(int i=0; name[i]; i++) p->name[i] = name[i];
-    
+    for (int i = 0; name[i]; i++)
+        p->name[i] = name[i];
+
     p->state = RUNNABLE;
     spinlock_release(&p->lk);
 }
@@ -225,21 +272,24 @@ void proc_make_first() {
     父进程产生子进程
     UNUSED -> RUNNABLE
 */
-int proc_fork() {
-    
+int proc_fork()
+{
+
     proc_t *p = myproc();
     proc_t *np = proc_alloc(); // 注意：proc_alloc 返回时已经持有了 np->lk
-    if (np == NULL) return -1;
+    if (np == NULL)
+        return -1;
 
     // 1. 复制内存映射 (页表, 堆, 栈, mmap)
     uvm_copy_pgtbl(p->pgtbl, np->pgtbl, p->heap_top, p->ustack_npage, p->mmap);
     np->heap_top = p->heap_top;
     np->ustack_npage = p->ustack_npage;
-    
+
     // 复制 mmap 链表 (深拷贝)
     mmap_region_t *node = p->mmap;
     mmap_region_t **ptr = &np->mmap;
-    while (node) {
+    while (node)
+    {
         mmap_region_t *new_node = mmap_region_alloc();
         *new_node = *node; // 复制内容
         new_node->next = NULL;
@@ -251,16 +301,27 @@ int proc_fork() {
     // 2. 复制 Trapframe
     *(np->tf) = *(p->tf);
     // 关键修正：子进程必须使用自己的内核栈指针
-    np->tf->user_to_kern_sp = np->kstack + PGSIZE; 
+    np->tf->user_to_kern_sp = np->kstack + PGSIZE;
 
     // 3. 子进程返回 0
     np->tf->a0 = 0;
 
     // 4. 设置父子关系
     np->parent = p;
-    for(int i=0; i<16; i++) np->name[i] = p->name[i];
+    for (int i = 0; i < 16; i++)
+        np->name[i] = p->name[i];
 
-    // 5. 唤醒子进程
+    // 5. 复制文件描述符和工作目录
+    np->cwd = (p->cwd != NULL) ? inode_dup(p->cwd) : NULL;
+    for (int i = 0; i < N_OPEN_FILE_PER_PROC; i++)
+    {
+        if (p->open_file[i] != NULL)
+            np->open_file[i] = file_dup(p->open_file[i]);
+        else
+            np->open_file[i] = NULL;
+    }
+
+    // 6. 唤醒子进程
     // 【删除】 spinlock_acquire(&np->lk);  <-- 删掉这一行，因为锁已经在 proc_alloc 中拿到了
     np->state = RUNNABLE;
     spinlock_release(&np->lk); // 释放锁，允许调度器调度子进程
@@ -274,7 +335,8 @@ int proc_fork() {
     RUNNING->RUNNABLE
 */
 // 让出 CPU (RUNNING -> RUNNABLE)
-void proc_yield() {
+void proc_yield()
+{
     proc_t *p = myproc();
     spinlock_acquire(&p->lk);
     p->state = RUNNABLE;
@@ -286,15 +348,19 @@ void proc_yield() {
     当父进程退出时, 让它的所有子进程认proczero为父
     因为proczero永不退出, 可以回收子进程的资源
 */
-static void proc_reparent(proc_t *p) {
-    for (int i = 0; i < N_PROC; i++) {
+static void proc_reparent(proc_t *p)
+{
+    for (int i = 0; i < N_PROC; i++)
+    {
         proc_t *child = &proc_list[i];
-        if (child->parent == p) {
+        if (child->parent == p)
+        {
             spinlock_acquire(&child->lk);
             child->parent = proczero;
             // 如果子进程已经是僵尸，唤醒 proczero 来回收它
-            if (child->state == ZOMBIE) {
-                proc_try_wakeup(child); 
+            if (child->state == ZOMBIE)
+            {
+                proc_try_wakeup(child);
             }
             spinlock_release(&child->lk);
         }
@@ -307,14 +373,17 @@ static void proc_reparent(proc_t *p) {
     tips: 调用者需要持有p的进程锁
 */
 // 逻辑：检查父进程是否在休眠，且等待的资源(sleep_space)是不是父进程自己
-void proc_try_wakeup(proc_t *p) {
+void proc_try_wakeup(proc_t *p)
+{
     proc_t *parent = p->parent;
-    if (!parent) return; // 理论上不应发生，除非是 proczero
+    if (!parent)
+        return; // 理论上不应发生，除非是 proczero
 
     spinlock_acquire(&parent->lk);
     // 父进程在 proc_wait 中是调用 proc_sleep(parent, &wait_lk)
     // 所以它等待的 sleep_space 是 parent 本身
-    if (parent->state == SLEEPING && parent->sleep_space == parent) {
+    if (parent->state == SLEEPING && parent->sleep_space == parent)
+    {
         parent->state = RUNNABLE;
     }
     spinlock_release(&parent->lk);
@@ -324,9 +393,11 @@ void proc_try_wakeup(proc_t *p) {
     进程退出
     RUNNING -> ZOMBIE
 */
-void proc_exit(int exit_code) {
+void proc_exit(int exit_code)
+{
     proc_t *p = myproc();
-    if (p == proczero) panic("proczero exiting");
+    if (p == proczero)
+        panic("proczero exiting");
 
     // 1. 必须先持有 wait_lk，以保证父子进程状态变更的原子性
     spinlock_acquire(&wait_lk);
@@ -341,7 +412,7 @@ void proc_exit(int exit_code) {
     spinlock_acquire(&p->lk);
     p->exit_code = exit_code;
     p->state = ZOMBIE;
-    
+
     // 5. 释放 wait_lk
     spinlock_release(&wait_lk);
 
@@ -354,36 +425,43 @@ void proc_exit(int exit_code) {
     父进程等待一个子进程进入ZOMBIE状态
     1. 如果等到: 释放子进程, 返回子进程的pid, 将子进程的退出状态传出到user_addr
     2. 如果发现没孩子: 返回-1
-    3. 如果没等到: 父进程进入睡眠状态 
+    3. 如果没等到: 父进程进入睡眠状态
 */
-int proc_wait(uint64 addr) {
+int proc_wait(uint64 addr)
+{
     proc_t *p = myproc();
     spinlock_acquire(&wait_lk);
 
-    while (1) {
+    while (1)
+    {
         int have_kids = 0;
-        for (int i = 0; i < N_PROC; i++) {
+        for (int i = 0; i < N_PROC; i++)
+        {
             proc_t *child = &proc_list[i];
-            if (child->parent != p) continue;
-            
+            if (child->parent != p)
+                continue;
+
             have_kids = 1;
             spinlock_acquire(&child->lk);
-            if (child->state == ZOMBIE) {
+            if (child->state == ZOMBIE)
+            {
                 int pid = child->pid;
-                if (addr != 0 && child->pgtbl) {
+                if (addr != 0 && child->pgtbl)
+                {
                     int code = child->exit_code;
                     // 简单拷贝，假设 addr 合法
                     uvm_copyout(p->pgtbl, addr, (uint64)&code, sizeof(int));
                 }
                 proc_free(child);
                 // spinlock_release(&child->lk); // 先释放子进程锁
-                spinlock_release(&wait_lk);   // 再释放 wait 锁
+                spinlock_release(&wait_lk); // 再释放 wait 锁
                 return pid;
             }
             spinlock_release(&child->lk);
         }
 
-        if (!have_kids) {
+        if (!have_kids)
+        {
             spinlock_release(&wait_lk);
             return -1;
         }
@@ -397,15 +475,17 @@ int proc_wait(uint64 addr) {
     进程等待sleep_space对应的资源, 进入睡眠状态
     RUNNING -> SLEEPING
 */
-void proc_sleep(void *chan, spinlock_t *lk) {
+void proc_sleep(void *chan, spinlock_t *lk)
+{
     proc_t *p = myproc();
-    
+
     // 逻辑修正：
     // 必须持有 p->lk 才能修改 p->state 并调用 sched。
     // 如果传入的锁 lk 不是 p->lk，说明我们还没持有 p->lk，需要获取。
     // 如果传入的锁就是 p->lk，说明我们已经持有了，不需要再次获取。
-    if(lk != &p->lk) {
-        spinlock_acquire(&p->lk); 
+    if (lk != &p->lk)
+    {
+        spinlock_acquire(&p->lk);
         spinlock_release(lk);
     }
 
@@ -421,7 +501,8 @@ void proc_sleep(void *chan, spinlock_t *lk) {
 
     // 恢复锁的状态
     // 如果之前释放了 lk 并获取了 p->lk，现在要反过来
-    if(lk != &p->lk) {
+    if (lk != &p->lk)
+    {
         spinlock_release(&p->lk);
         spinlock_acquire(lk);
     }
@@ -431,12 +512,16 @@ void proc_sleep(void *chan, spinlock_t *lk) {
     唤醒所有等待sleep_space的进程
     SLEEPING -> RUNNABLE
 */
-void proc_wakeup(void *chan) {
-    for (int i = 0; i < N_PROC; i++) {
+void proc_wakeup(void *chan)
+{
+    for (int i = 0; i < N_PROC; i++)
+    {
         proc_t *p = &proc_list[i];
-        if (p != myproc()) {
+        if (p != myproc())
+        {
             spinlock_acquire(&p->lk);
-            if (p->state == SLEEPING && p->sleep_space == chan) {
+            if (p->state == SLEEPING && p->sleep_space == chan)
+            {
                 p->state = RUNNABLE;
             }
             spinlock_release(&p->lk);
@@ -444,47 +529,56 @@ void proc_wakeup(void *chan) {
     }
 }
 
-/* 
+/*
     用户进程切换到调度器
     tips: 调用者保证持有当前进程的锁
 */
 // 进程主动放弃 CPU (调度器 -> 进程 -> 调度器)
-void proc_sched() {
+void proc_sched()
+{
     int intena;
     proc_t *p = myproc();
-    
-    if(!spinlock_holding(&p->lk)) panic("proc_sched p->lk");
-    if(mycpu()->noff != 1) panic("proc_sched locks");
-    if(p->state == RUNNING) panic("proc_sched running");
-    if(intr_get()) panic("proc_sched interruptible");
-    
+
+    if (!spinlock_holding(&p->lk))
+        panic("proc_sched p->lk");
+    if (mycpu()->noff != 1)
+        panic("proc_sched locks");
+    if (p->state == RUNNING)
+        panic("proc_sched running");
+    if (intr_get())
+        panic("proc_sched interruptible");
+
     intena = mycpu()->origin;
     swtch(&p->ctx, &mycpu()->ctx); // 切回 scheduler
     mycpu()->origin = intena;
 }
 
-/* 
+/*
     调度器
     RUNNABLE->RUNNING
 */
-void proc_scheduler() {
+void proc_scheduler()
+{
     cpu_t *c = mycpu();
     c->proc = NULL;
-    
-    while(1) {
+
+    while (1)
+    {
         intr_on(); // 调度器空闲时打开中断，响应时钟
-        
-        for(int i = 0; i < N_PROC; i++) {
+
+        for (int i = 0; i < N_PROC; i++)
+        {
             proc_t *p = &proc_list[i];
             spinlock_acquire(&p->lk);
-            
-            if(p->state == RUNNABLE) {
+
+            if (p->state == RUNNABLE)
+            {
                 p->state = RUNNING;
                 c->proc = p;
-                
+
                 // 切换到进程的内核上下文 (会跳转到 proc_return -> trap_user_return -> 用户态)
                 swtch(&c->ctx, &p->ctx);
-                
+
                 // 进程被切换回来 (比如调用了 yield 或 sleep)
                 c->proc = NULL;
             }
