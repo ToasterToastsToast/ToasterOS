@@ -9,12 +9,14 @@ static spinlock_t print_lk;
 static int print_locking; /*存储在 .bss 段 初始化为0，因为cpu-0不用锁*/
 
 /* 初始化uart + 初始化printf锁 */
-void print_init(void) {
+
+void print_init(void)
+{
     uart_init();
+    cons_init();
     spinlock_init(&print_lk, "printf");
     print_locking = 1;
 }
-
 static void printchar(int c) { uart_putc_sync(c); }
 
 static void printstr(char *str) {
