@@ -51,10 +51,16 @@ static uint64 prepare_heap(pgtbl_t new_pgtbl, inode_t *ip, elf_header_t *eh)
             return -1;
         if (ph.va % PGSIZE != 0)
             return -1;
-
+        int perm = 0;
+        if (ph.flags & ELF_PROG_FLAG_READ)
+            perm |= PTE_R;
+        if (ph.flags & ELF_PROG_FLAG_WRITE)
+            perm |= PTE_W;
+        if (ph.flags & ELF_PROG_FLAG_EXEC)
+            perm |= PTE_X;
         // 用户堆生长
         new_heap_top = uvm_heap_grow(new_pgtbl, old_heap_top,
-                                     ph.va + ph.mem_size - old_heap_top, PTE_R | PTE_X);
+                                     ph.va + ph.mem_size - old_heap_top, perm);
         if (new_heap_top != ph.va + ph.mem_size)
             return -1;
         old_heap_top = new_heap_top;

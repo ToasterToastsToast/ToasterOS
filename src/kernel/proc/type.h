@@ -180,3 +180,4 @@ typedef struct program_header
 #define ELF_MAXARGS 32
 // 单个参数长度限制
 #define ELF_MAXARG_LEN (PGSIZE / ELF_MAXARGS)
+#define KSTACK_VA(pid) (TRAPFRAME - (pid + 2) * PGSIZE)
