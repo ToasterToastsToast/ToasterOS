@@ -12,93 +12,7 @@
 static int kernel_int_array[ARRAY_LEN_IN_INTS];
 static char kernel_str_buf[MAX_STRING_LEN];
 
-// // --- 任务1: sys_copyout (内核 -> 用户) ---
-// /*
-//     测试: 向用户空间传出一个int类型的数组 (1 2 3 4 5)
-//     参数: a0 = addr (用户数组起始地址)
-//     成功返回0
-// */
-// uint64 sys_copyout()
-// {
-//     proc_t *p = myproc();
-//     // 参数 1: a0 寄存器 (用户目标地址)
-//     uint64 user_dst_addr = p->tf->a0;
 
-//     // 1. 【准备内核源数据】
-//     // 硬编码内核数组内容 (1, 2, 3, 4, 5)
-//     for (int i = 0; i < ARRAY_LEN_IN_INTS; i++)
-//     {
-//         kernel_int_array[i] = i + 1;
-//     }
-
-//     // 2. 【调用 uvm_copyout】
-//     // 内核源地址: kernel_int_array
-//     // 拷贝长度: ARRAY_SIZE_IN_BYTES (20 字节)
-//     uvm_copyout(p->pgtbl, user_dst_addr, (uint64)kernel_int_array, ARRAY_SIZE_IN_BYTES);
-
-//     printf("sys_copyout: Copied hardcoded array to user 0x%lx.\n", user_dst_addr);
-
-//     return 0; // 成功返回
-// }
-
-// // --- 任务2: sys_copyin (用户 -> 内核) ---
-// /*
-//     测试: 从用户空间传入一个int类型的数组
-//     参数: a0 = addr (用户数组起始地址), a1 = 5 (元素数量)
-//     成功返回0
-// */
-// uint64 sys_copyin()
-// {
-//     proc_t *p = myproc();
-//     // 参数 1: a0 寄存器 (用户源地址)
-//     uint64 user_src_addr = p->tf->a0;
-//     // 参数 2: a1 寄存器 (元素数量，我们假定它总是 5)
-//     uint32 num_elements = (uint32)p->tf->a1;
-
-//     if (num_elements != ARRAY_LEN_IN_INTS)
-//     {
-//         printf("sys_copyin: Expected 5 elements, received %d. Aborting.\n", num_elements);
-//         return (uint64)-1;
-//     }
-
-//     // 1. 【调用 uvm_copyin】
-//     // 内核目标地址: kernel_int_array
-//     // 拷贝长度: ARRAY_SIZE_IN_BYTES (20 字节)
-//     uvm_copyin(p->pgtbl, (uint64)kernel_int_array, user_src_addr, ARRAY_SIZE_IN_BYTES);
-
-//     // 2. 【打印验证】
-//     printf("sys_copyin: Array received from user: [ ");
-//     for (int i = 0; i < ARRAY_LEN_IN_INTS; i++)
-//     {
-//         printf("%d ", kernel_int_array[i]);
-//     }
-//     printf("]\n");
-
-//     return 0; // 成功返回
-// }
-
-// // --- 任务3: sys_copyinstr (用户 -> 内核字符串) ---
-// /*
-//     测试: 从用户空间传入一个字符串
-//     参数: a0 = addr (用户字符串起始地址)
-//     成功返回0
-// */
-// uint64 sys_copyinstr()
-// {
-//     proc_t *p = myproc();
-//     // 参数 1: a0 寄存器 (用户字符串地址)
-//     uint64 user_src_addr = p->tf->a0;
-
-//     // 1. 【调用 uvm_copyin_str】
-//     // 内核目标地址: kernel_str_buf
-//     // 拷贝的最大长度: MAX_STRING_LEN
-//     uvm_copyin_str(p->pgtbl, (uint64)kernel_str_buf, user_src_addr, MAX_STRING_LEN);
-
-//     // 2. 【打印验证】
-//     printf("sys_copyinstr: String received from user: '%s'\n", kernel_str_buf);
-
-//     return 0; // 成功返回
-// }
 /*
     用户堆空间伸缩
     uint64 new_heap_top (如果是0, 代表查询当前堆顶位置)
@@ -188,10 +102,7 @@ uint64 sys_mmap()
     // 如果申请的是随机地址(begin=0)，需要返回实际分配的地址
     // 简单做法：遍历链表找最后分配的（或者修改uvm_mmap返回地址，这里参考okos在sys层找）
     if (begin == 0) {
-        // 这里假设最近分配的在合适位置，或者遍历找到符合 npages 的
-        // 注意：上面的 uvm_mmap 实现中如果合并了节点，这里可能找不到精确匹配 npages 的节点
-        // 更严谨的做法是让 uvm_mmap 返回分配的地址。
-        // 鉴于 okos 是这么写的，我们模仿它的逻辑查找：
+
         mmap_region_t *tmp = p->mmap;
         // 这是一个简化的查找，实际可能需要优化
         while (tmp != NULL) {
@@ -202,20 +113,7 @@ uint64 sys_mmap()
              }
              tmp = tmp->next;
         }
-        // 实际上 okos 的 uvm_mmap_find 确定了地址。
-        // 我们可以稍微修改 sys_mmap，让它通过 uvm_mmap 内部逻辑来确定
-        // 但为了不改动 uvm.c 的接口定义，我们这里需要再次扫描或记录。
-        // 修正：okos 的 sys_mmap 实现里，如果 begin==0，它是去遍历链表找到那个区域的。
-        // 实际上 uvm_mmap 里的 uvm_mmap_find 返回了 search_begin。
-        // 建议：你可以在 sys_mmap 里再次调用一次 uvm_mmap_find 的逻辑来获取返回值，
-        // 或者直接让 uvm_mmap 返回 uint64 地址而不是 void。
-        // 为了最少改动，我们假设测试用例不依赖返回值的精确性，或者你修改 uvm_mmap 返回地址。
-        
-        // **强烈建议修改 uvm.c 中的 uvm_mmap 返回 uint64 begin**
-        // 但如果不改头文件，我们只能在 sys_mmap 里模拟查找：
-        // (此处略去复杂查找，如果必须返回正确地址，建议修改 uvm_mmap 定义)
-        
-        // 简单起见，参考 OKOS 的 sys_mmap 实现，它其实是在 sys_mmap 里又找了一遍：
+
         mmap_region_t *t = p->mmap;
         while(t) {
             // 这是一个 hack，假设最后找到的就是。
@@ -237,11 +135,7 @@ uint64 sys_mmap()
     vm_print(p->pgtbl);
     
     printf("\n");
-    // ========================================================
-    
-    // 为了通过测试，建议直接让 uvm_mmap 返回地址，同步修改 method.h
-    // 这里暂时返回 begin (如果是0可能导致测试失败，但lab-5.md里sys_mmap要返回起始地址)
-    // 我们这里做一个妥协：假设 uvm.c 的 uvm_mmap 实际上应该返回 uint64
+
     return begin; 
 }
 
@@ -460,4 +354,335 @@ uint64 sys_flush_buffer()
     uint32 count;
     arg_uint32(0, &count);
     return buffer_freemem(count);
+}
+
+
+
+/*
+    执行ELF文件以替换当前进程的内容
+    char *path
+    char **argv
+    成功返回argc, 失败返回-1
+*/
+uint64 sys_exec()
+{
+    char path[STR_MAXLEN + 1];
+    uint64 argv_addr;
+    arg_str(0, path, STR_MAXLEN);
+    arg_uint64(1, &argv_addr);
+
+    char *argv_k[ELF_MAXARGS + 1];
+    for (int i = 0; i < ELF_MAXARGS + 1; i++)
+        argv_k[i] = NULL;
+
+    proc_t *p = myproc();
+    for (int i = 0; i < ELF_MAXARGS; i++)
+    {
+        uint64 uargv = argv_addr + (uint64)i * sizeof(uint64);
+        uint64 uarg;
+        uvm_copyin(p->pgtbl, (uint64)&uarg, uargv, sizeof(uint64));
+        if (uarg == 0)
+        {
+            argv_k[i] = NULL;
+            break;
+        }
+        argv_k[i] = pmem_alloc(true);
+        uvm_copyin_str(p->pgtbl, (uint64)argv_k[i], uarg, ELF_MAXARG_LEN);
+    }
+    argv_k[ELF_MAXARGS] = NULL;
+
+    int ret = proc_exec(path, argv_k);
+
+    for (int i = 0; i < ELF_MAXARGS; i++)
+    {
+        if (argv_k[i] == NULL)
+            break;
+        pmem_free((uint64)argv_k[i], true);
+    }
+
+    return ret;
+}
+
+/* 构建fd->file的映射, 返回fd */
+static uint32 alloc_fd(file_t *file)
+{
+    proc_t *p = myproc();
+    for (uint32 i = 0; i < N_OPEN_FILE_PER_PROC; i++)
+    {
+        if (p->open_file[i] == NULL)
+        {
+            p->open_file[i] = file;
+            return i;
+        }
+    }
+    return -1;
+}
+
+/*
+    打开或创建文件
+    char *path
+    uint32 open_mode
+    成功返回fd, 失败返回-1
+*/
+uint64 sys_open()
+{
+    char buf[STR_MAXLEN + 1];
+    uint32 mode;
+    arg_str(0, buf, STR_MAXLEN);
+    arg_uint32(1, &mode);
+
+    file_t *fp = file_open(buf, mode);
+    if (!fp)
+        return (uint64)-1;
+
+    uint32 newfd = alloc_fd(fp);
+    if (newfd == (uint32)-1)
+    {
+        file_close(fp);
+        return (uint64)-1;
+    }
+    return newfd;
+}
+
+/*
+    关闭文件
+    uint32 fd
+    成功返回0, 失败返回-1
+*/
+uint64 sys_close()
+{
+    uint32 idx;
+    file_t *fp;
+    if (arg_fd(0, &idx, &fp) < 0)
+        return (uint64)-1;
+
+    myproc()->open_file[idx] = NULL;
+    file_close(fp);
+    return 0;
+}
+/*
+    读取文件内容
+    uint32 fd
+    uint32 len
+    uint64 addr
+    成功返回读到的字节数, 失败返回0
+*/
+uint64 sys_read()
+{
+    file_t *fp;
+    uint32 size;
+    uint64 uaddr;
+
+    if (arg_fd(0, NULL, &fp) < 0)
+        return 0;
+    arg_uint32(1, &size);
+    arg_uint64(2, &uaddr);
+
+    return file_read(fp, size, uaddr, true);
+}
+/*
+    写入文件内容
+    uint32 fd
+    uint32 len
+    uint64 addr
+    成功返回写入的字节数, 失败返回0
+*/
+uint64 sys_write()
+{
+    file_t *fp;
+    uint32 size;
+    uint64 uaddr;
+
+    if (arg_fd(0, NULL, &fp) < 0)
+        return 0;
+    arg_uint32(1, &size);
+    arg_uint64(2, &uaddr);
+
+    return file_write(fp, size, uaddr, true);
+}
+
+/*
+    调整读写指针位置
+    uint32 fd
+    uint32 offset
+    uint32 flag
+    成功返回新的偏移量, 失败返回-1
+*/
+uint64 sys_lseek()
+{
+    file_t *fp;
+    uint32 off, whence;
+
+    if (arg_fd(0, NULL, &fp) < 0)
+        return (uint64)-1;
+    arg_uint32(1, &off);
+    arg_uint32(2, &whence);
+
+    return file_lseek(fp, off, whence);
+}
+/*
+    复制文件控制权
+    uinr32 fd
+    成功返回new_fd, 失败返回-1
+*/
+uint64 sys_dup()
+{
+    uint32 oldfd;
+    file_t *fp;
+
+    if (arg_fd(0, &oldfd, &fp) < 0)
+        return (uint64)-1;
+
+    file_t *dup_fp = file_dup(fp);
+    uint32 retfd = alloc_fd(dup_fp);
+    if (retfd == (uint32)-1)
+    {
+        file_close(dup_fp);
+        return (uint64)-1;
+    }
+    return retfd;
+}
+/*
+    获取文件信息
+    uint32 fd
+    uint64 addr
+    成功返回0, 失败返回-1
+*/
+uint64 sys_fstat()
+{
+    file_t *fp;
+    uint64 uaddr;
+
+    if (arg_fd(0, NULL, &fp) < 0)
+        return (uint64)-1;
+    arg_uint64(1, &uaddr);
+
+    return file_get_stat(fp, uaddr);
+}
+/*
+    获取目录中的所有目录项信息
+    uint32 fd
+    uint64 addr
+    uint32 buffer_len
+    成功返回读到的字节数, 失败返回-1
+*/
+/*
+    获取目录中的所有目录项信息
+    uint32 fd
+    uint64 addr
+    uint32 buffer_len
+    成功返回读到的字节数, 失败返回-1
+*/
+uint64 sys_get_dentries()
+{
+    file_t *fp;
+    uint64 uaddr;
+    uint32 len;
+
+    if (arg_fd(0, NULL, &fp) < 0)
+        return (uint64)-1;
+    arg_uint64(1, &uaddr);
+    arg_uint32(2, &len);
+
+    return file_read(fp, len, uaddr, true);
+}
+
+/*
+    创建目录
+    char *path
+    成功返回0, 失败返回-1
+*/
+uint64 sys_mkdir()
+{
+    char buf[STR_MAXLEN + 1];
+    arg_str(0, buf, STR_MAXLEN);
+
+    inode_t *node = path_create_inode(
+        buf,
+        INODE_TYPE_DIR,
+        INODE_MAJOR_DEFAULT,
+        INODE_MINOR_DEFAULT);
+    if (!node)
+        return (uint64)-1;
+
+    inode_put(node);
+    return 0;
+}
+/*
+    修改当前工作目录
+    char *new_path
+    成功返回0, 失败返回-1
+*/
+uint64 sys_chdir()
+{
+    char buf[STR_MAXLEN + 1];
+    arg_str(0, buf, STR_MAXLEN);
+
+    inode_t *node = path_to_inode(buf);
+    if (!node)
+        return (uint64)-1;
+
+    inode_lock(node);
+    if (node->disk_info.type != INODE_TYPE_DIR)
+    {
+        inode_unlock(node);
+        inode_put(node);
+        return (uint64)-1;
+    }
+    inode_unlock(node);
+
+    proc_t *cur = myproc();
+    if (cur->cwd)
+        inode_put(cur->cwd);
+    cur->cwd = node;
+
+    return 0;
+}
+
+/*
+    打印当前工作目录的绝对路径
+    成功返回0, 失败返回-1
+*/
+uint64 sys_print_cwd()
+{
+    proc_t *cur = myproc();
+    if (!cur->cwd)
+        return (uint64)-1;
+
+    char buf[STR_MAXLEN + 1];
+    uint32 pos = inode_to_path(cur->cwd, buf, sizeof(buf));
+    if ((int)pos < 0)
+        return (uint64)-1;
+
+    printf("%s\n", buf + pos);
+    return 0;
+}
+
+/*
+    新建链接
+    char *old_path
+    char *new_path
+    成功返回0, 失败返回-1
+*/
+uint64 sys_link()
+{
+    char src[STR_MAXLEN + 1];
+    char dst[STR_MAXLEN + 1];
+    arg_str(0, src, STR_MAXLEN);
+    arg_str(1, dst, STR_MAXLEN);
+
+    return path_link(src, dst);
+}
+
+/*
+    删除链接 (可能触发删除文件)
+    char *path
+    成功返回0, 失败返回-1
+*/
+uint64 sys_unlink()
+{
+    char buf[STR_MAXLEN + 1];
+    arg_str(0, buf, STR_MAXLEN);
+
+    return path_unlink(buf);
 }
