@@ -60,7 +60,7 @@ file_t *file_open(char *path, uint32 open_mode)
        }
 
        inode_lock(ip);
-       if (ip->disk_info.type == INODE_TYPE_DIVICE)
+       if (ip->disk_info.type == INODE_TYPE_DEVICE)
        {
               if (!device_open_check(ip->disk_info.major, open_mode))
               {
@@ -130,7 +130,7 @@ uint32 file_read(file_t *file, uint32 len, uint64 dst, bool is_user_dst)
               ret = dentry_transmit(ip, dst, len, is_user_dst);
               inode_unlock(ip);
               break;
-       case INODE_TYPE_DIVICE:
+       case INODE_TYPE_DEVICE:
               ret = device_read_data(ip->disk_info.major, len, dst, is_user_dst);
               break;
        default:
@@ -162,7 +162,7 @@ uint32 file_write(file_t *file, uint32 len, uint64 src, bool is_user_src)
        case INODE_TYPE_DIR:
               ret = 0;
               break;
-       case INODE_TYPE_DIVICE:
+       case INODE_TYPE_DEVICE:
               ret = device_write_data(ip->disk_info.major, len, src, is_user_src);
               break;
        default:
@@ -200,7 +200,7 @@ uint32 file_lseek(file_t *file, uint32 lseek_offset, uint32 lseek_flag)
               break;
        }
 
-       if (ip->disk_info.type != INODE_TYPE_DIVICE)
+       if (ip->disk_info.type != INODE_TYPE_DEVICE)
        {
               inode_lock(ip);
               if (new_off > ip->disk_info.size)

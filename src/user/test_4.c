@@ -37,6 +37,7 @@ void main(int argc, char *argv[])
     len = sys_read(fd2, sizeof(tmp), tmp);
     if (len != sizeof(tmp))
     {
+        fprintf(STDERR, "DEBUG: expected 128, but got %d\n", len);
         fprintf(STDERR, "/dev/zero fail\n");
         sys_exit(1);
     }

@@ -45,7 +45,7 @@ typedef enum
 
 #define TYPE_DATA 0   // file管理无结构的流式数据
 #define TYPE_DIR 1    // file管理结构化的目录数据
-#define TYPE_DIVICE 2 // file对应虚拟设备(不管理数据)
+#define TYPE_DEVICE 2 // file对应虚拟设备(不管理数据)
 
 #define STDIN 0  // 标准输入
 #define STDOUT 1 // 标准输出

@@ -110,59 +110,71 @@ static void device_register(uint32 index, char *name,
 }
 
 /* 初始化device_table与挂载设备文件 */
+/* 初始化device_table */
 void device_init()
 {
-    int idx = 0;
-    // 预先清理设备表
-    for (; idx < N_DEVICE; ++idx)
-    {
-        device_table[idx].read = NULL;
-        device_table[idx].write = NULL;
-        memset(device_table[idx].name, 0, MAXLEN_FILENAME);
+    // 1. 清空表
+    for (int i = 0; i < (int)N_DEVICE; i++) {
+        memset(device_table[i].name, 0, MAXLEN_FILENAME);
+        device_table[i].read = NULL;
+        device_table[i].write = NULL;
     }
 
-    // 静态注册核心设备
-    device_register(INODE_MAJOR_STDIN, "stdin", device_stdin_read, NULL);
-    device_register(INODE_MAJOR_STDOUT, "stdout", NULL, device_stdout_write);
-    device_register(INODE_MAJOR_STDERR, "stderr", NULL, device_stderr_write);
-    device_register(INODE_MAJOR_ZERO, "zero", device_zero_read, NULL);
-    device_register(INODE_MAJOR_NULL, "null", device_null_read, device_null_write);
-    device_register(INODE_MAJOR_GPT0, "gpt0", NULL, device_gpt0_write);
+    // 2. 注册设备
+    device_register(INODE_MAJOR_STDIN,  "stdin",  device_stdin_read,  NULL);
+    device_register(INODE_MAJOR_STDOUT, "stdout", NULL,              device_stdout_write);
+    device_register(INODE_MAJOR_STDERR, "stderr", NULL,              device_stderr_write);
+    device_register(INODE_MAJOR_ZERO,   "zero",   device_zero_read,  NULL);
+    device_register(INODE_MAJOR_NULL,   "null",   device_null_read,  device_null_write);
+    device_register(INODE_MAJOR_GPT0,   "gpt0",   NULL,              device_gpt0_write);
 
-    // 确保 /dev 目录存在
-    inode_t *dev_root = path_to_inode("/dev");
-    if (!dev_root)
-    {
-        dev_root = path_create_inode("/dev", INODE_TYPE_DIR, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
+    // 3. 确保 /dev 存在（不存在则创建目录）
+    inode_t *devdir = path_to_inode("/dev");
+    if (devdir == NULL) {
+        devdir = path_create_inode("/dev", INODE_TYPE_DIR,
+            INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
     }
-    if (dev_root)
-        inode_put(dev_root);
+    if (devdir)
+        inode_put(devdir);
 
-    // 遍历设备表，在文件系统中创建对应的设备节点
-    for (idx = 0; idx < N_DEVICE; idx++)
-    {
-        char *dev_name = device_table[idx].name;
-        if (dev_name[0] == '\0')
-            continue;
+    // 4. 确保 /dev/* 设备文件存在且类型正确
+    struct { const char *path; uint16 major; } devs[] = {
+        {"/dev/stdin",  INODE_MAJOR_STDIN},
+        {"/dev/stdout", INODE_MAJOR_STDOUT},
+        {"/dev/stderr", INODE_MAJOR_STDERR},
+        {"/dev/zero",   INODE_MAJOR_ZERO},
+        {"/dev/null",   INODE_MAJOR_NULL},
+        {"/dev/gpt0",   INODE_MAJOR_GPT0},
+    };
 
-        char full_path[MAXLEN_FILENAME + 8];
-        int name_len = strlen(dev_name);
+    for (int i = 0; i < (int)(sizeof(devs) / sizeof(devs[0])); i++) {
+        inode_t *ip = path_to_inode((char*)devs[i].path);
 
-        // 构造路径字符串: /dev/name
-        memmove(full_path, "/dev/", 5);
-        if (name_len >= MAXLEN_FILENAME)
-            name_len = MAXLEN_FILENAME - 1;
-        memmove(full_path + 5, dev_name, name_len);
-        full_path[5 + name_len] = '\0';
-
-        inode_t *node = path_to_inode(full_path);
-        if (node == NULL)
-        {
-            // 若节点不存在则创建，major号对应数组索引
-            node = path_create_inode(full_path, INODE_TYPE_DIVICE, (uint16)idx, INODE_MINOR_DEFAULT);
+        if (ip == NULL) {
+            // 情况A：文件不存在，直接创建正确的设备文件
+            ip = path_create_inode((char*)devs[i].path, INODE_TYPE_DEVICE,
+                devs[i].major, INODE_MINOR_DEFAULT);
+        } else {
+            // 情况B：文件已存在，检查类型是否正确（自动修复旧镜像问题）
+            inode_lock(ip);
+            if (ip->disk_info.type != INODE_TYPE_DEVICE || 
+                ip->disk_info.major != devs[i].major) 
+            {
+                printf("[device_init] Fixing device file: %s (type=%d->%d)\n", 
+                    devs[i].path, ip->disk_info.type, INODE_TYPE_DEVICE);
+                
+                // 修正内存中的 inode 信息
+                ip->disk_info.type = INODE_TYPE_DEVICE;
+                ip->disk_info.major = devs[i].major;
+                
+                // 立即写回磁盘，确保下次读取时生效
+                inode_rw(ip, true); 
+            }
+            inode_unlock(ip);
         }
-        if (node)
-            inode_put(node);
+
+        if (ip)
+            inode_put(ip);
     }
 }
 

@@ -40,7 +40,7 @@ typedef struct super_block
 /* type的可能取值 */
 #define INODE_TYPE_DATA 0   // inode管理无结构的流式数据
 #define INODE_TYPE_DIR 1    // inode管理结构化的目录数据
-#define INODE_TYPE_DIVICE 2 // inode对应虚拟设备(不管理数据)
+#define INODE_TYPE_DEVICE 2 // inode对应虚拟设备(不管理数据)
 
 /* major和minor的默认取值(代表磁盘设备) */
 #define INODE_MAJOR_DEFAULT 1 // 默认的主设备号
