@@ -92,7 +92,7 @@ uint64 sys_mmap()
     uvm_mmap(begin, npages, PTE_R | PTE_W | PTE_U);
 
     // 如果申请的是随机地址(begin=0)，需要返回实际分配的地址
-    // 简单做法：遍历链表找最后分配的（或者修改uvm_mmap返回地址，这里参考okos在sys层找）
+    // 简单做法：遍历链表找最后分配的
     if (begin == 0) {
 
         mmap_region_t *tmp = p->mmap;

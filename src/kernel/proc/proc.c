@@ -30,7 +30,7 @@ static proc_t *proczero;
 // 全局pid + 保护它的锁
 static int global_pid;
 static spinlock_t pid_lk;
-static spinlock_t wait_lk; // OKOS 经验：专门用于 wait/exit 同步的锁，防止死锁
+static spinlock_t wait_lk;
 
 /* 获取一个pid */
 static int alloc_pid()
