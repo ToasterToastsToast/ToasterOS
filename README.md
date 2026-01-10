@@ -1,4 +1,7 @@
-# ToasterOS
+# Lab-9: 文件系统之文件管理与全系统整合
+
+**ToasterOS**
+
 ```
             xxxxxxxxxxxxxxxxxxxxxx                                                                                             
        xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx                                                                                        
@@ -29,34 +32,100 @@ xx          @@@@       @@@@        xxxx              xxx    x xx       xxxx  xxx
          x                     xxxxx x                                                                                         
          xxxxxxxxxxxxxxxx xx x x  x                                                                                            
                                   x                                                                                            ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+
 ```
-ECNU Operating System 2025 Fall Final Project 
 
-**Contributors**: 
-- [ToasterToasterToast](https://github.com/ToasterToastsToast) - 主要完成串口中断的实现，以及一些串口中断和时钟中断的测试代码
-- [syqwq](https://github.com/syqwq-OMG) - 主要完成时钟中断，以及内核态trap处理的核心逻辑
+本实验的主要工作包含以下三个维度：
 
---- 
-## 0x01 串口中断
+1. **文件系统完善**：实现硬链接、反向路径解析、文件抽象 (`file_t`) 及设备驱动框架。
+2. **进程与FS交互**：为进程引入当前工作目录 (`cwd`) 和打开文件表，支持相对路径。
+3. **全系统整合**：实现 `exec` 系统调用，解析 ELF Header，加载段，构建用户栈。
 
-#### 1
-使用`medeleg = 0xffff;`设置`medeleg`的低16位全为1，表示将编号0~15的所有异常委托给S模式处理。
+---
 
-#### 2
-我们修改了`uart.c`，添加了一个可以处理换行与退格的函数`uart_putc_sync_ext(int)`，逻辑是：
-- 普通字符，直接调用uart_putc_sync()`发送。
-- 如果发送的字符是换行符，则要输出`\r`和`\n`，换行回车。
-- 如果字符是`backspace`或者`delete`，则光标回退，然后输出一个空格来覆盖字符，然后回退。
-目前不支持跨行删除（即删除到一行开头后继续删除就回到上一行末尾），完整的跨行删除功能需要对终端状态有完整的掌握，包括光标位置、屏幕内容和滚动状态。这较为复杂且也不是这个lab的重点。
 
-#### 3
-检查uart引发的中断。由`trap_kernel_handler()`负责陷阱，检测到外设中断则安排给`external_interrupt_handler()`，后者检查如果是串口中断则调用对应的处理逻辑，`uart_intr()`。这个函数尝试读取字符并回显。
+## 具体实现细节
 
-#### 4
-完善`uart_intr`。这里主要指改调用更完善的`uart_putc_sync_ext(c);`。另一方面我们顺便模仿xv6准备了一些异步发送的代码，尽管在这个实验是**不必要**的，因为测试代码完全是同步发送。
+### 1. 准备工作
 
-#### 测试
-测试函数`echo_test`实现了一个简单的输入回显功能。程序首先打印提示信息，然后进入无限循环不断检查UART输入。当检测到有字符输入时（`uart_getc_sync`返回非-1值），立即通过`uart_putc_sync_ext`将字符回显到输出设备。这是一个**同步阻塞式**的回显测试，字符的读取和输出都是直接操作硬件完成的，不依赖缓冲区或中断处理机制。
-## 0xff. references
-- [labs assignments](https://gitee.com/xu-ke-123/ecnu-oslab-2025-task)
-- [riscv简单常用汇编指令xv6](https://blog.csdn.net/surfaceyan/article/details/135030477)
+为了支撑后续的高级功能，我们首先对基础模块进行了改造：
+
+* **内存统计**：在 `pmem.c` 中实现了 `pmem_stat`，便于观察系统运行时的内存消耗。
+* **权限精细化**：修改 `uvm_heap_grow`，支持传入 `flag` 参数。这是为了 `exec` 加载 ELF 时，能够区分代码段（R|X）和数据段（R|W）的权限，增强安全性。
+* **行缓冲控制台**：在 `console.c` 中实现了行缓冲机制。用户输入的字符会先暂存在缓冲区，直到按下回车才被系统读取，支持了退格与基本的行编辑功能。
+
+### 2. 文件系统进阶
+
+我们在 Lab-8 的基础上，构建了更高层的文件抽象。
+
+#### 2.1 目录项增强 (`dentry.c`)
+
+* **逆向路径解析 (`inode_to_path`)**：实现了从 Inode 反查绝对路径的功能。核心逻辑是利用 `..` 目录项不断回溯父节点，直到根目录，主要用于 `getcwd`。
+* **硬链接 (`path_link/unlink`)**：
+* **Link**: 不复制文件内容，而是在新目录下创建一个指向已有 Inode 的 dentry，并增加 Inode 的 `nlink` 计数。
+* **Unlink**: 删除 dentry 并减少 `nlink`。当 `nlink` 归零且无进程引用时，才真正释放磁盘块。
+
+
+
+#### 2.2 文件的抽象 (`fs.c`)
+
+引入 `file_t` 结构体，屏蔽了底层资源的差异。
+
+* **结构定义**：包含 `type` (INODE/DEVICE), `ref` (引用计数), `readable/writable` (权限), `offset` (读写指针)。
+* **统一接口**：`file_read` 和 `file_write` 根据文件类型进行分发：
+* 若是普通文件/目录，调用底层 `inode_read/write`。
+* 若是设备文件，调用 `device_read/write`。
+
+
+
+#### 2.3 设备驱动框架 (`device.c`)
+
+实现了“设备即文件”的映射。我们定义了主设备号 (Major Device Number) 来区分不同设备：
+
+* **CONSOLE (1)**: 对应 `stdin` (读) 和 `stdout/stderr` (写)。
+* **NULL (4)**: 黑洞设备，写被丢弃，读返回 0。
+* **ZERO (5)**: 零设备，源源不断产生 `\0` 数据。
+* **GPT0 (6)**: 一个简单的交互式测试设备。
+
+### 3. 进程与文件系统的融合
+
+进程 (`proc_t`) 不再是孤独的计算单元，它拥有了对文件系统的“感知”。
+
+* **CWD (Current Working Directory)**：
+* 在 `proc_t` 中增加 `inode_t *cwd`。
+* 修改 `__path_to_inode`，支持相对路径解析：若路径不以 `/` 开头，则从 `cwd` 开始查找。
+* 实现了 `sys_chdir` 切换工作目录。
+
+
+* **打开文件表 (Open Files)**：
+* 在 `proc_t` 中增加 `file_t *open_file[N_FILE]`。
+* **Fork**: 子进程通过 `file_dup` 继承父进程的所有打开文件（引用计数+1），实现资源共享。
+* **Exit**: 进程退出时，自动关闭所有打开文件并释放 `cwd`。
+
+
+* **Initcode 改造**：PID 1 进程 (`initcode`) 在启动时，手动构造了 `stdin`, `stdout`, `stderr` 三个标准文件描述符，确保后续所有子进程天生具备 I/O 能力。
+
+### 4. Exec 系统调用 (`exec.c`)
+
+这是本实验最复杂的函数，它让静态的磁盘文件变成了动态的运行进程。`proc_exec` 的执行流如下：
+
+1. **解析路径**：调用 `path_to_inode` 找到可执行文件。
+2. **检查头信息**：读取 ELF Header，验证魔数 (`\x7fELF`)。
+3. **构建新页表**：分配全新的用户页表，防止破坏旧地址空间。
+4. **加载段 (Segments)**：
+* 遍历 Program Headers。
+* 对于 `LOAD` 类型的段，分配物理内存，将文件内容读取并映射到虚拟地址（利用 `uvm_heap_grow` 设置正确权限）。
+
+
+5. **构建栈 (Stack)**：
+* 分配用户栈页。
+* **参数压栈**：将 `argv` 字符串数组拷贝到栈顶，并构造 `argv[]` 指针数组，确保 `main(argc, argv)` 能正确获取参数。
+
+
+6. **替换上下文**：
+* 提交新的页表。
+* 修改 `trapframe`：`epc` 设为 ELF 入口地址，`sp` 设为新栈顶，`a0/a1` 设为参数。
+
+
+7. **清理现场**：释放旧的页表和 Trapframe，释放 ELF 文件的 Inode。
+
