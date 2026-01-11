@@ -30,33 +30,173 @@ xx          @@@@       @@@@        xxxx              xxx    x xx       xxxx  xxx
          xxxxxxxxxxxxxxxx xx x x  x                                                                                            
                                   x                                                                                            ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ```
-ECNU Operating System 2025 Fall Final Project 
 
-**Contributors**: 
-- [ToasterToasterToast](https://github.com/ToasterToastsToast) - 主要完成串口中断的实现，以及一些串口中断和时钟中断的测试代码
-- [syqwq](https://github.com/syqwq-OMG) - 主要完成时钟中断，以及内核态trap处理的核心逻辑
 
---- 
-## 0x01 串口中断
+## 1. 模块实现详解
 
-#### 1
-使用`medeleg = 0xffff;`设置`medeleg`的低16位全为1，表示将编号0~15的所有异常委托给S模式处理。
+### 第一阶段：磁盘驱动与内核基础设施
 
-#### 2
-我们修改了`uart.c`，添加了一个可以处理换行与退格的函数`uart_putc_sync_ext(int)`，逻辑是：
-- 普通字符，直接调用uart_putc_sync()`发送。
-- 如果发送的字符是换行符，则要输出`\r`和`\n`，换行回车。
-- 如果字符是`backspace`或者`delete`，则光标回退，然后输出一个空格来覆盖字符，然后回退。
-目前不支持跨行删除（即删除到一行开头后继续删除就回到上一行末尾），完整的跨行删除功能需要对终端状态有完整的掌握，包括光标位置、屏幕内容和滚动状态。这较为复杂且也不是这个lab的重点。
+**目标**：让内核识别磁盘，建立内存映射，并能响应磁盘中断。
 
-#### 3
-检查uart引发的中断。由`trap_kernel_handler()`负责陷阱，检测到外设中断则安排给`external_interrupt_handler()`，后者检查如果是串口中断则调用对应的处理逻辑，`uart_intr()`。这个函数尝试读取字符并回显。
+#### 1. 引入磁盘驱动 (`src/kernel/fs/virtio.c`)
 
-#### 4
-完善`uart_intr`。这里主要指改调用更完善的`uart_putc_sync_ext(c);`。另一方面我们顺便模仿xv6准备了一些异步发送的代码，尽管在这个实验是**不必要**的，因为测试代码完全是同步发送。
+* **功能**：实现 VirtIO 协议，提供 `virtio_disk_rw` 接口供上层调用。
+* **实现要点**：
+* **初始化 (`virtio_disk_init`)**：配置 VirtIO 寄存器，协商特性，分配 DMA 队列。
+* **读写 (`virtio_disk_rw`)**：封装请求到描述符链，通知设备，然后调用 `proc_sleep` 进入睡眠等待中断。
+* **中断处理 (`virtio_disk_intr`)**：当磁盘操作完成时触发，负责回收描述符并调用 `proc_wakeup` 唤醒等待的进程。
 
-#### 测试
-测试函数`echo_test`实现了一个简单的输入回显功能。程序首先打印提示信息，然后进入无限循环不断检查UART输入。当检测到有字符输入时（`uart_getc_sync`返回非-1值），立即通过`uart_putc_sync_ext`将字符回显到输出设备。这是一个**同步阻塞式**的回显测试，字符的读取和输出都是直接操作硬件完成的，不依赖缓冲区或中断处理机制。
-## 0xff. references
-- [labs assignments](https://gitee.com/xu-ke-123/ecnu-oslab-2025-task)
-- [riscv简单常用汇编指令xv6](https://blog.csdn.net/surfaceyan/article/details/135030477)
+
+
+#### 2. 内存映射 (`src/kernel/mem/kvm.c`)
+
+* **任务**：VirtIO 设备是通过 MMIO (Memory Mapped I/O) 访问的，需要在内核页表中建立映射。
+* **修改**：
+* 在 `kvm_init` 中增加对 `VIRTIO_BASE` 的映射。
+* 修改 `vm_getpte`：由于驱动可能会传入 `NULL` 作为页表参数（表示内核页表），需要增加判空逻辑 `if (pgtbl == NULL) pgtbl = kernel_pgtbl;`。
+
+
+
+#### 3. 中断配置 (`src/kernel/trap/plic.c` & `trap_kernel.c`)
+
+* **PLIC 配置**：
+* 在 `plic_init` 中设置磁盘中断（`VIRTIO_IRQ`）的优先级。
+* 在 `plic_inithart` 中开启磁盘中断的使能位（Enable）。
+
+
+* **中断响应**：
+* 在 `trap_kernel.c` 的 `external_interrupt_handler` 中增加 `case VIRTIO_IRQ:` 分支，调用 `virtio_disk_intr()`。
+
+
+
+#### 4. 系统启动 (`src/kernel/main.c`)
+
+* 在 `main` 函数中调用 `virtio_disk_init()`。
+
+---
+
+### 第二阶段：缓冲系统
+
+**目标**：实现 `src/kernel/fs/buf.c`，管理内存中的 Block 缓存，作为磁盘与内存的桥梁。
+
+#### 1. 数据结构
+
+* 使用双向循环链表管理 buffer。为了实现 LRU（最近最少使用），通常维护两个链表：
+* **活跃链表 (Active List)**：正在被使用的 buffer（`ref > 0`）。
+* **非活跃链表 (Inactive List)**：空闲的 buffer（`ref == 0`）。
+
+
+
+#### 2. 核心函数实现
+
+* **`buffer_init`**：初始化锁和链表头，将所有 buffer 插入非活跃链表。
+* **`buffer_get(block_num)`**：
+1. **查找**：先在活跃链表找，再在非活跃链表找。
+2. **命中 (Hit)**：如果找到，引用计数 `ref++`，将其移到活跃链表头部。
+3. **未命中 (Miss)**：从非活跃链表**尾部**取出一个 buffer（LRU 淘汰策略）。
+4. **物理内存分配**：如果取出的 buffer 没有关联物理页（`data == NULL`），需调用 `pmem_alloc` 分配。
+5. **重置**：更新 `block_num`，`ref = 1`，移入活跃链表，并读取磁盘数据（如果是新 Block）。
+
+
+* **`buffer_put(buf)`**：
+* 引用计数 `ref--`。
+* 如果 `ref == 0`，将 buffer 移回非活跃链表。
+
+
+* **`buffer_read/write`**：
+* 持有睡眠锁 (`sleeplock`) 保证独占访问。
+* 调用 `virtio_disk_rw` 执行实际 I/O。
+
+
+
+---
+
+### 第三阶段：Bitmap 管理
+
+**目标**：实现 `src/kernel/fs/bitmap.c`，管理磁盘空间的分配。
+
+#### 1. 核心逻辑
+
+* **`bitmap_alloc_block/inode`**：
+* 遍历 Bitmap 区域的所有 Block。
+* 调用 `bitmap_search_and_set` 在块内寻找空闲位（bit 为 0）。
+* 找到后置 1，并返回全局索引。
+
+
+* **`bitmap_free_block/inode`**：
+* 根据索引计算所在的 Block 和偏移量。
+* 将对应 bit 置 0。
+
+
+* **辅助函数**：
+* `bitmap_search_and_set`：需处理最后一个 Block 不满的情况，利用位运算加速查找。
+
+
+
+---
+
+### 第四阶段：系统调用
+
+**目标**：暴露内核功能供用户程序测试。
+
+#### 1. 注册系统调用
+
+在 `src/kernel/syscall/syscall.c` 和 `sysfunc.c` 中实现以下调用：
+
+* **Bitmap 操作**：`sys_alloc_block`, `sys_free_block`, `sys_show_bitmap` 等。
+* **Buffer 操作**：`sys_get_block`, `sys_read_block` (拷贝数据到用户态), `sys_write_block`, `sys_flush_buffer` 等。
+
+---
+
+## 2. 关键并发问题修复 
+
+在实现过程中，除了基本的逻辑，修正了两个并发 Bug。
+
+1. **进程调度器上下文切换 (Context Switch)**
+* **问题**：`proc_scheduler` 中为了获取 PID 修改了 `tp` 寄存器，但切换回来后未恢复。导致 `spinlock` 判断 CPU ID 出错。
+* **修复**：在 `swtch` 返回后立即恢复 `tp`。
+
+
+```c
+swtch(&mycpu()->context, &p->context);
+w_tp(cpuid);
+
+```
+
+
+2. **睡眠锁竞态条件 (Sleep Race Condition)**
+* **问题**：`proc_sleep` 中检查 `p->lk.locked` 状态是不安全的。
+* **修复**：通过判断锁的地址来决定是否需要获取锁。
+
+
+```c
+void proc_sleep(void *chan, spinlock_t *lk) {
+    proc_t *p = myproc();
+    if(lk != &p->lk) { // 如果持有的不是进程锁，则交换锁
+        spinlock_acquire(&p->lk);
+        spinlock_release(lk);
+    }
+    p->state = SLEEPING;
+    proc_sched();
+    // ... 唤醒后恢复锁 ...
+}
+
+```
+
+
+---
+
+## 3. 测试与验证
+
+test 1
+
+![](./pic/11.png)
+
+test 2
+![](./pic/22.png)
+
+test 3
+
+![](./pic/31.png)
+![](./pic/32.png)
+
