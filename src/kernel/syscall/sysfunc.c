@@ -124,7 +124,7 @@ uint64 sys_mmap()
     uvm_show_mmaplist(p->mmap);
     
     // 3. 打印页表详情
-    vm_print(p->pgtbl);
+    //vm_print(p->pgtbl);
     
     printf("\n");
 
@@ -150,10 +150,10 @@ uint64 sys_munmap()
     uvm_munmap(begin, len / PGSIZE);
 
     // ================== [新增] 打印调试信息 ==================
-    printf("sys_munmap: unmapped region [0x%x, 0x%x)\n", begin, begin + len);
-    uvm_show_mmaplist(p->mmap);
-    vm_print(p->pgtbl);
-    printf("\n");
+    // printf("sys_munmap: unmapped region [0x%x, 0x%x)\n", begin, begin + len);
+    //uvm_show_mmaplist(p->mmap);
+    // vm_print(p->pgtbl);
+    // printf("\n");
     // ========================================================
     return 0;
 }

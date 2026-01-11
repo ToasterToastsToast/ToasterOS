@@ -72,7 +72,7 @@ void mmap_region_free(mmap_region_t *mmap)
     // 2. 检查地址是否在合法范围内 (可选，但推荐)
     if (node < &node_list[0] || node >= &node_list[N_MMAP])
     {
-        printf("mmap_region_free: WARNING! Freeing invalid mmap node address %x\n", node);
+        //printf("mmap_region_free: WARNING! Freeing invalid mmap node address %x\n", node);
         return; // 或者 panic
     }
 
@@ -84,7 +84,7 @@ void mmap_region_free(mmap_region_t *mmap)
 
     spinlock_release(&list_lk);
 
-    printf("mmap_region_free: Node %d freed.\n", (int)(node - &node_list[0]));
+    //printf("mmap_region_free: Node %d freed.\n", (int)(node - &node_list[0]));
 }
 
 // 输出可用的 mmap_region_node_t 链

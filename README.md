@@ -129,3 +129,7 @@ xx          @@@@       @@@@        xxxx              xxx    x xx       xxxx  xxx
 
 7. **清理现场**：释放旧的页表和 Trapframe，释放 ELF 文件的 Inode。
 
+### 5. 测试
+![Alt text](lab-manual/pic/image.png)
+![Alt text](lab-manual/pic/image-1.png)
+![Alt text](lab-manual/pic/image-2.png)
